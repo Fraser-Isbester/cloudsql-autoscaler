@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.24.4'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # For signing
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for changelog
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Run tests
+      run: make check
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-,suffix=-{{date 'YYYYMMDD'}},enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Install cosign
+      if: github.event_name != 'pull_request'
+      uses: sigstore/cosign-installer@v3
+      with:
+        cosign-release: 'v2.2.4'
+
+    - name: Sign container image
+      if: github.event_name != 'pull_request'
+      env:
+        TAGS: ${{ steps.meta.outputs.tags }}
+        DIGEST: ${{ steps.build.outputs.digest }}
+      run: |
+        images=""
+        for tag in ${TAGS}; do
+          images+="${tag}@${DIGEST} "
+        done
+        cosign sign --yes ${images}
+
+    - name: Generate SBOM
+      if: github.event_name != 'pull_request'
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+        format: spdx-json
+        output-file: sbom.spdx.json
+
+    - name: Scan image for vulnerabilities
+      if: github.event_name != 'pull_request'
+      uses: anchore/scan-action@v3
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+        fail-build: false
+        severity-cutoff: high
+
+    - name: Build release binaries
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        mkdir -p dist
+
+        # Build for multiple architectures
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/cloudsql-autoscaler-linux-amd64 ./cmd/cloudsql-autoscaler
+        GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/cloudsql-autoscaler-linux-arm64 ./cmd/cloudsql-autoscaler
+        GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/cloudsql-autoscaler-darwin-amd64 ./cmd/cloudsql-autoscaler
+        GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/cloudsql-autoscaler-darwin-arm64 ./cmd/cloudsql-autoscaler
+        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/cloudsql-autoscaler-windows-amd64.exe ./cmd/cloudsql-autoscaler
+
+        # Generate checksums
+        cd dist
+        sha256sum * > checksums.txt
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/*
+          sbom.spdx.json
+        generate_release_notes: true
+        prerelease: ${{ contains(github.ref, '-') }}
+
+  update-deployment:
+    name: Update Kubernetes Deployment
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Update image tag in deployment
+      run: |
+        sed -i "s|ghcr.io/fraser-isbester/cloudsql-autoscaler:.*|ghcr.io/fraser-isbester/cloudsql-autoscaler:main-${{ github.sha }}-$(date +%Y%m%d)|g" deploy/kubernetes/deployment.yaml
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "chore: update container image to main-${{ github.sha }}"
+        title: "Auto-update: Container image to main-${{ github.sha }}"
+        body: |
+          Automated update of container image tag after successful build.
+
+          - **Commit**: ${{ github.sha }}
+          - **Image**: ghcr.io/fraser-isbester/cloudsql-autoscaler:main-${{ github.sha }}-$(date +%Y%m%d)
+        branch: auto-update-image-${{ github.sha }}
+        delete-branch: true

@@ -65,12 +65,6 @@ docker-push: docker-build
 docker-run:
 	docker run --rm -it $(LATEST_IMAGE) --help
 
-## Test Docker container with daemon mode
-docker-test:
-	docker run --rm $(LATEST_IMAGE) --daemon --dry-run --interval=10s --project=test-project &
-	sleep 15
-	docker stop $$(docker ps -q --filter ancestor=$(LATEST_IMAGE))
-
 ## Deploy to Kubernetes
 deploy-k8s:
 	kubectl apply -f $(K8S_MANIFESTS)/namespace.yaml
@@ -100,19 +94,6 @@ k8s-logs:
 k8s-port-forward:
 	kubectl port-forward -n $(K8S_NAMESPACE) svc/cloudsql-autoscaler 8080:8080
 
-## Run Go mod tidy
-mod-tidy:
-	go mod tidy
-
-## Run security scan with gosec
-security-scan:
-	gosec ./...
-
 ## Run linter
 lint:
 	golangci-lint run
-
-## Show help
-help:
-	@echo "Available targets:"
-	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  /'
