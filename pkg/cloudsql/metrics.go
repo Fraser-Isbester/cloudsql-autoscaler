@@ -179,13 +179,13 @@ func CalculateMetricsSummary(data *config.MetricsData) *config.MetricsSummary {
 	summary := &config.MetricsSummary{
 		DataPoints: len(data.Timestamps),
 	}
-	
+
 	// Handle empty data gracefully
 	if len(data.Timestamps) == 0 {
 		summary.Period = 0
 		return summary
 	}
-	
+
 	summary.Period = data.Timestamps[len(data.Timestamps)-1].Sub(data.Timestamps[0])
 
 	// Calculate CPU statistics

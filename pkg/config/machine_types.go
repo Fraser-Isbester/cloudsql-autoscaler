@@ -40,15 +40,15 @@ func GetScalingConstraints(edition Edition) ScalingConstraints {
 		}
 	case EditionEnterprise:
 		return ScalingConstraints{
-			MinUpscaleInterval:   "0s", // No interval restriction
-			MinDownscaleInterval: "0s", // No interval restriction
+			MinUpscaleInterval:   "6h", // No interval restriction
+			MinDownscaleInterval: "6h", // No interval restriction
 			DowntimeOnScale:      true, // Always causes downtime
 		}
 	default:
 		// Default to Enterprise constraints (more restrictive)
 		return ScalingConstraints{
-			MinUpscaleInterval:   "0s",
-			MinDownscaleInterval: "0s",
+			MinUpscaleInterval:   "24h",
+			MinDownscaleInterval: "24h",
 			DowntimeOnScale:      true,
 		}
 	}

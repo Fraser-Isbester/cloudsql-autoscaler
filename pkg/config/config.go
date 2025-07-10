@@ -29,7 +29,7 @@ type Config struct {
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		MetricsPeriod:           7 * 24 * time.Hour, // 7 days
+		MetricsPeriod:           3 * 24 * time.Hour, // 3 days
 		MetricsInterval:         5 * time.Minute,    // 5 minute granularity
 		CPUTargetUtilization:    0.7,                // 70%
 		MemoryTargetUtilization: 0.8,                // 80%
