@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudsql-autoscaler
+  labels:
+    app.kubernetes.io/name: cloudsql-autoscaler
+    app.kubernetes.io/version: "latest"

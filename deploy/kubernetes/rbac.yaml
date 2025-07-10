@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudsql-autoscaler
+  namespace: cloudsql-autoscaler
+  annotations:
+    # Google Cloud Service Account for Workload Identity
+    iam.gke.io/gcp-service-account: cloudsql-autoscaler@PROJECT_ID.iam.gserviceaccount.com
+  labels:
+    app.kubernetes.io/name: cloudsql-autoscaler
+    app.kubernetes.io/component: serviceaccount
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudsql-autoscaler
+  labels:
+    app.kubernetes.io/name: cloudsql-autoscaler
+    app.kubernetes.io/component: rbac
+rules:
+# Required for leader election and coordination
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+# Required for monitoring other pods and nodes (optional)
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloudsql-autoscaler
+  labels:
+    app.kubernetes.io/name: cloudsql-autoscaler
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cloudsql-autoscaler
+subjects:
+- kind: ServiceAccount
+  name: cloudsql-autoscaler
+  namespace: cloudsql-autoscaler

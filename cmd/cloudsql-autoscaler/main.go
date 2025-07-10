@@ -13,6 +13,7 @@ import (
 
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/analyzer"
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/config"
+	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/daemon"
 )
 
 var (
@@ -21,6 +22,11 @@ var (
 	dryRun    bool
 	profile   string
 	output    string
+	// Daemon mode flags
+	daemonMode     bool
+	daemonInterval time.Duration
+	httpPort       int
+	enableMetrics  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -40,6 +46,12 @@ func init() {
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", true, "Show what would be done without making changes")
 	rootCmd.Flags().StringVar(&profile, "profile", "default", "Scaling profile (default, conservative, aggressive)")
 	rootCmd.Flags().StringVar(&output, "output", "table", "Output format (table, json)")
+
+	// Daemon mode flags
+	rootCmd.Flags().BoolVar(&daemonMode, "daemon", false, "Run in continuous daemon mode")
+	rootCmd.Flags().DurationVar(&daemonInterval, "interval", 30*time.Minute, "Interval between autoscaling checks in daemon mode")
+	rootCmd.Flags().IntVar(&httpPort, "http-port", 8080, "HTTP port for health checks and metrics")
+	rootCmd.Flags().BoolVar(&enableMetrics, "metrics", true, "Enable Prometheus metrics endpoint")
 }
 
 func main() {
@@ -148,6 +160,12 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 	cfg.ProjectID = projectID
 	cfg.DryRun = dryRun
 
+	// Handle daemon mode
+	if daemonMode {
+		return runDaemon(ctx, cfg)
+	}
+
+	// Handle one-shot mode
 	projectAnalyzer, err := analyzer.NewProjectAnalyzer(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create analyzer: %w", err)
@@ -162,6 +180,28 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 		return analyzeSpecificInstances(ctx, projectAnalyzer, instances)
 	}
 	return analyzeAllInstances(ctx, projectAnalyzer)
+}
+
+func runDaemon(ctx context.Context, cfg *config.Config) error {
+	// Initialize metrics if enabled
+	if enableMetrics {
+		daemon.InitMetrics()
+	}
+
+	// Create daemon configuration
+	daemonCfg := &daemon.DaemonConfig{
+		Interval:      daemonInterval,
+		HTTPPort:      httpPort,
+		EnableMetrics: enableMetrics,
+	}
+
+	// Create and start daemon
+	d, err := daemon.NewDaemon(cfg, daemonCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create daemon: %w", err)
+	}
+
+	return d.Start()
 }
 
 func analyzeSpecificInstances(ctx context.Context, analyzer *analyzer.ProjectAnalyzer, instances []string) error {

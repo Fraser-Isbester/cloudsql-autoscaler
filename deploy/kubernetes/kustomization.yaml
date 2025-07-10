@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: cloudsql-autoscaler
+  namespace: cloudsql-autoscaler
+
+resources:
+- namespace.yaml
+- rbac.yaml
+- configmap.yaml
+- deployment.yaml
+- service.yaml
+
+commonLabels:
+  app.kubernetes.io/name: cloudsql-autoscaler
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+- name: ghcr.io/fraser-isbester/cloudsql-autoscaler
+  newTag: latest
+
+# Configuration transformers
+configMapGenerator:
+- name: cloudsql-autoscaler-config
+  files:
+  - config.properties
+
+patches:
+# Set GCP project ID via annotation
+- target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: cloudsql-autoscaler
+  patch: |-
+    - op: add
+      path: /spec/template/metadata/annotations/gcp-project-id
+      value: "YOUR_PROJECT_ID"
+
+replicas:
+- name: cloudsql-autoscaler
+  count: 1

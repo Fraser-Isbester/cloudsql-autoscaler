@@ -1,0 +1,46 @@
+# Ignore build artifacts and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Ignore version control
+.git
+.gitignore
+
+# Ignore documentation that's not needed in container
+README.md
+CLAUDE.md
+LICENSE
+*.md
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+*.vim
+
+# Ignore test coverage files
+coverage.out
+coverage.html
+
+# Ignore built binaries (will be built in container)
+cloudsql-autoscaler
+/cloudsql-autoscaler
+
+# Ignore deployment files
+deploy/
+build/
+.github/
+
+# Ignore example configs and docs
+examples/
+docs/
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore temporary Go files
+*.test
+*.prof

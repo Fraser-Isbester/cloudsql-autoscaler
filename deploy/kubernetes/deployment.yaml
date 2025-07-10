@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudsql-autoscaler
+  namespace: cloudsql-autoscaler
+  labels:
+    app.kubernetes.io/name: cloudsql-autoscaler
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/version: "latest"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Ensure only one instance runs at a time
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudsql-autoscaler
+      app.kubernetes.io/component: autoscaler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudsql-autoscaler
+        app.kubernetes.io/component: autoscaler
+        app.kubernetes.io/version: "latest"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cloudsql-autoscaler
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532  # nonroot user from distroless
+        fsGroup: 65532
+      containers:
+      - name: cloudsql-autoscaler
+        image: ghcr.io/fraser-isbester/cloudsql-autoscaler:latest
+        imagePullPolicy: Always
+        args:
+        - "--daemon"
+        - "--project=$(GCP_PROJECT_ID)"
+        - "--profile=$(PROFILE)"
+        - "--interval=$(INTERVAL)"
+        - "--dry-run=$(DRY_RUN)"
+        - "--http-port=$(HTTP_PORT)"
+        - "--metrics=$(METRICS_ENABLED)"
+        env:
+        - name: GCP_PROJECT_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['gcp-project-id']
+        - name: PROFILE
+          valueFrom:
+            configMapKeyRef:
+              name: cloudsql-autoscaler-config
+              key: profile
+        - name: INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: cloudsql-autoscaler-config
+              key: interval
+        - name: DRY_RUN
+          valueFrom:
+            configMapKeyRef:
+              name: cloudsql-autoscaler-config
+              key: dry-run
+        - name: HTTP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: cloudsql-autoscaler-config
+              key: http-port
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: cloudsql-autoscaler-config
+              key: metrics
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

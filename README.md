@@ -1,79 +1,116 @@
-# cloudsql-autoscaler
-This is an autoscaling controller for GCP Cloud SQL DB instances. It leverages the Cloud SQL Admin API to monitor and adjust machine type of instances based on various trailing memory & cpu load patterns.
+# CloudSQL Autoscaler
 
-It can be run standalone or as a Kubernetes process.
-
-## Usage
-
-As a CLI
-```bash
-$ go install github.com/fraser-isbester/cloudsql-autoscaler@latest
-...
-$ cloudsql-autoscaler --project <gcp-project-id> --instance <cloud-sql-instance-name> --dry-run
-...
-$ cloudsql-autoscaler --project <gcp-project-id> --dry-run
-```
-
-As a Kubernetes controller
-```bash
-$ kubectl apply -f https://raw.githubusercontent.com/fraser-isbester/cloudsql-autoscaler/main/deploy/kubernetes.yaml
-```
+Automatically scales Google Cloud SQL instances based on CPU and memory utilization patterns. Supports both one-shot CLI usage and continuous daemon mode for production deployments.
 
 ## Features
 
-- Automatic scaling of Cloud SQL instances based on historic load.
-- Easy integration with existing GCP projects.
-- Runnable as a standalone CLI or as a Kubernetes controller.
+- **Smart Analysis**: Uses 3 days of metrics and P95 percentiles to avoid scaling on temporary spikes
+- **Enterprise Aware**: Understands downtime constraints for Enterprise vs Enterprise Plus editions
+- **Multiple Modes**: CLI tool, Docker container, or Kubernetes deployment
+- **Configurable**: Conservative, default, and aggressive scaling profiles
+- **Observable**: Built-in Prometheus metrics and health endpoints
 
-## How it works
-The autoscaler monitors the CPU and memory usage of Cloud SQL instances over time. It can be given an instance or self discover them. Based on the configuration & autoscaling profile it will read historic load data of the instance(s) and adjust the machine type accordingly. Enterprise Plus instances can be autoscaled up about once every ~30 minutes, and scaled down about once every ~3 hours without meaningful downtime (subsecond). Autoscaling outside those bounds is possible but will incur downtime -- the autoscaler will warn you if you attempt to do this.
-
-## Usage
+## Quick Start
 
 ```bash
-# Analyze all instances in the project (dry-run by default)
-cloudsql-autoscaler
+# Install
+go install github.com/fraser-isbester/cloudsql-autoscaler/cmd/cloudsql-autoscaler@latest
 
-# Analyze specific instance(s)
-cloudsql-autoscaler --instance my-instance
-cloudsql-autoscaler --instance db1 --instance db2
-
-# Actually apply scaling recommendations
-cloudsql-autoscaler --dry-run=false
-
-# Use different scaling profiles
-cloudsql-autoscaler --profile conservative  # Less aggressive scaling
-cloudsql-autoscaler --profile aggressive    # More responsive to load changes
-
-# Specify project (optional if Application Default Credentials are configured)
+# Analyze all instances (dry-run by default)
 cloudsql-autoscaler --project my-gcp-project
 
-# Output as JSON for automation/integration
-cloudsql-autoscaler --output json
+# Apply scaling recommendations
+cloudsql-autoscaler --project my-gcp-project --dry-run=false
+
+# Analyze specific instances
+cloudsql-autoscaler --project my-gcp-project --instance db1 --instance db2
 ```
 
-### Scaling Profiles
+## Usage Options
 
-- **default**: Scale up at 80% utilization, down at 50%, requires 1 hour sustained load, analyzes 7 days of data
-- **conservative**: Scale up at 90%, down at 30%, requires 2 hours sustained load, analyzes 14 days of data  
-- **aggressive**: Scale up at 70%, down at 60%, requires 30 minutes sustained load, analyzes 3 days of data
+### Basic Commands
+```bash
+# Core flags
+--project string       GCP project ID
+--instance strings     Specific instance(s) to analyze (default: all)
+--dry-run             Show recommendations without applying (default: true)
+--output string       Format: table or json (default: table)
 
-### Machine Type Support
+# Daemon mode for continuous operation
+--daemon              # Run continuously
+--interval duration   # Check interval (default: 30m)
+--http-port int       # Health/metrics port (default: 8080)
+```
 
-- Standard machine types (db-f1-micro, db-g1-small, db-n1-*, db-n2-*, db-e2-*)
-- Custom machine types (db-custom-{vcpus}-{memory_mb})
-- Performance-optimized machine types (db-perf-optimized-N-*)
+### Example Commands
+```bash
+# One-shot analysis with JSON output
+cloudsql-autoscaler --project my-project --output json
 
-The autoscaler respects Cloud SQL constraints and will provide appropriate scaling recommendations within the same machine series.
+# Conservative scaling for production
+cloudsql-autoscaler --project my-project --profile conservative --dry-run=false
 
-### Output Formats
+# Continuous monitoring with 15-minute intervals
+cloudsql-autoscaler --daemon --project my-project --interval=15m
+```
 
-- **table** (default): Human-readable table format with clear status messages
-- **json**: Structured JSON output perfect for automation, monitoring, and integration with other tools
+## Deployment Options
 
-JSON output includes:
-- Project and instance details
-- Current and recommended machine types  
-- Scaling actions taken or recommended
-- Error details if any
-- Timestamps and metadata
+### Docker
+```bash
+# Pull and run
+docker pull ghcr.io/fraser-isbester/cloudsql-autoscaler:latest
+docker run -d \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/creds.json \
+  -v /path/to/creds.json:/creds.json:ro \
+  ghcr.io/fraser-isbester/cloudsql-autoscaler:latest \
+  --daemon --project my-gcp-project
+```
+
+### Kubernetes
+```bash
+# Clone and deploy
+git clone https://github.com/fraser-isbester/cloudsql-autoscaler.git
+cd cloudsql-autoscaler
+make deploy-k8s
+
+# Check status
+make k8s-status
+make k8s-logs
+```
+
+**Prerequisites for Kubernetes:**
+- GKE cluster with Workload Identity enabled
+- Google Cloud Service Account with Cloud SQL Admin permissions
+
+See `deploy/kubernetes/README.md` for complete setup instructions.
+
+## Monitoring
+
+When running in daemon mode, health and metrics endpoints are available:
+
+```bash
+curl http://localhost:8080/health   # Health check
+curl http://localhost:8080/ready    # Readiness probe
+curl http://localhost:8080/status   # Detailed status
+curl http://localhost:8080/metrics  # Prometheus metrics
+```
+
+**Key Metrics:**
+- `cloudsql_autoscaler_instances_total` - Total instances in project
+- `cloudsql_autoscaler_instances_scalable` - Instances needing scaling
+- `cloudsql_autoscaler_scaling_operations_total` - Scaling operations by result
+- `cloudsql_autoscaler_cycle_duration_seconds` - Analysis cycle duration
+
+## How it Works
+
+1. **Collects Metrics**: Gathers 3 days of CPU/memory data from Cloud Monitoring
+2. **Analyzes Patterns**: Uses P95 percentiles to identify sustained load vs spikes
+3. **Recommends Changes**: Suggests machine type upgrades/downgrades within constraints
+4. **Respects Limits**: Understands Enterprise Plus zero-downtime windows vs Enterprise downtime requirements
+5. **Applies Safely**: Optionally executes changes with proper error handling and rollback
+
+**Supported Machine Types:**
+- Standard: `db-f1-micro`, `db-g1-small`, `db-n1-*`, `db-n2-*`, `db-e2-*`
+- Custom: `db-custom-{vcpus}-{memory_mb}`
+- Performance: `db-perf-optimized-N-*`

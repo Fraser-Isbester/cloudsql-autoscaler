@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudsql-autoscaler-config
+  namespace: cloudsql-autoscaler
+  labels:
+    app.kubernetes.io/name: cloudsql-autoscaler
+    app.kubernetes.io/component: config
+data:
+  # Default configuration values
+  profile: "default"
+  interval: "30m"
+  dry-run: "false"
+  http-port: "8080"
+  metrics: "true"
+  
+  # Optional: Override default scaling thresholds
+  # cpu-scale-up-threshold: "0.8"
+  # cpu-scale-down-threshold: "0.5"
+  # memory-scale-up-threshold: "0.8"
+  # memory-scale-down-threshold: "0.5"
+  
+  # Optional: Custom metrics period
+  # metrics-period: "72h"  # 3 days default
