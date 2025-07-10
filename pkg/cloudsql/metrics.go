@@ -177,9 +177,16 @@ func extractValue(v *monitoringpb.TypedValue) float64 {
 // CalculateMetricsSummary calculates statistical summary from metrics data
 func CalculateMetricsSummary(data *config.MetricsData) *config.MetricsSummary {
 	summary := &config.MetricsSummary{
-		Period:     data.Timestamps[len(data.Timestamps)-1].Sub(data.Timestamps[0]),
 		DataPoints: len(data.Timestamps),
 	}
+	
+	// Handle empty data gracefully
+	if len(data.Timestamps) == 0 {
+		summary.Period = 0
+		return summary
+	}
+	
+	summary.Period = data.Timestamps[len(data.Timestamps)-1].Sub(data.Timestamps[0])
 
 	// Calculate CPU statistics
 	summary.CPUAvg = calculateAverage(data.CPUUtilization)
