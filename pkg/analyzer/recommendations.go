@@ -29,19 +29,29 @@ func NewProjectAnalyzer(ctx context.Context, cfg *config.Config) (*ProjectAnalyz
 // AnalyzeAllInstances analyzes all Cloud SQL instances in the project
 func (p *ProjectAnalyzer) AnalyzeAllInstances(ctx context.Context) (*ProjectAnalysisResult, error) {
 	fmt.Println("Listing all Cloud SQL instances in the project...")
-	instances, err := p.sqlClient.ListInstances(ctx)
+
+	// First, get the raw list to know total count
+	rawResp, err := p.sqlClient.Service.Instances.List(p.config.ProjectID).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %w", err)
 	}
 
-	if len(instances) == 0 {
+	totalCount := len(rawResp.Items)
+
+	// Now get detailed info for instances we can process
+	instances, err := p.sqlClient.ListInstances(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance details: %w", err)
+	}
+
+	if totalCount == 0 {
 		return &ProjectAnalysisResult{
 			ProjectID: p.config.ProjectID,
 			Results:   []*AnalysisResult{},
 		}, nil
 	}
 
-	fmt.Printf("Found %d instances. Analyzing each instance...\n\n", len(instances))
+	fmt.Printf("Found %d instances (%d processable). Analyzing each instance...\n\n", totalCount, len(instances))
 
 	results := make([]*AnalysisResult, 0, len(instances))
 	for _, instance := range instances {
@@ -58,7 +68,7 @@ func (p *ProjectAnalyzer) AnalyzeAllInstances(ctx context.Context) (*ProjectAnal
 	return &ProjectAnalysisResult{
 		ProjectID:         p.config.ProjectID,
 		Results:           results,
-		TotalInstances:    len(instances),
+		TotalInstances:    totalCount,
 		AnalyzedInstances: len(results),
 	}, nil
 }

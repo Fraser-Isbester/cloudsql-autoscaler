@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/spf13/cobra"
 
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/analyzer"
@@ -14,156 +17,29 @@ import (
 
 var (
 	projectID string
-	instance  string
-	period    string
+	instances []string
 	dryRun    bool
-	force     bool
+	profile   string
+	output    string
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "cloudsql-autoscaler",
-	Short: "Autoscaling tool for Google Cloud SQL instances",
-	Long: `cloudsql-autoscaler analyzes Cloud SQL instance metrics and provides
-scaling recommendations based on CPU and memory utilization patterns.
+	Short: "Autoscaling controller for Google Cloud SQL instances",
+	Long: `cloudsql-autoscaler analyzes Cloud SQL instance metrics and automatically
+scales instances based on CPU and memory utilization patterns.
 
 It supports both Enterprise and Enterprise Plus editions with awareness
 of scaling constraints and downtime implications.`,
-}
-
-var analyzeCmd = &cobra.Command{
-	Use:   "analyze",
-	Short: "Analyze instance metrics and show utilization patterns",
-	Long:  `Fetches historical metrics for a Cloud SQL instance and analyzes CPU and memory utilization patterns.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		cfg := buildConfig()
-
-		analyzer, err := analyzer.NewAnalyzer(ctx, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
-		}
-		defer analyzer.Close()
-
-		result, err := analyzer.AnalyzeInstance(ctx, instance)
-		if err != nil {
-			return fmt.Errorf("analysis failed: %w", err)
-		}
-
-		result.PrintAnalysisReport()
-		return nil
-	},
-}
-
-var suggestCmd = &cobra.Command{
-	Use:   "suggest",
-	Short: "Suggest optimal machine type based on usage patterns",
-	Long:  `Analyzes metrics and suggests an optimal machine type for the instance based on historical usage.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		cfg := buildConfig()
-
-		analyzer, err := analyzer.NewAnalyzer(ctx, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
-		}
-		defer analyzer.Close()
-
-		result, err := analyzer.AnalyzeInstance(ctx, instance)
-		if err != nil {
-			return fmt.Errorf("analysis failed: %w", err)
-		}
-
-		result.PrintAnalysisReport()
-
-		if result.Decision.ShouldScale && !dryRun {
-			fmt.Println("\nApplying scaling recommendation...")
-			if err := analyzer.ApplyScaling(ctx, instance, result.Decision); err != nil {
-				return fmt.Errorf("failed to apply scaling: %w", err)
-			}
-		}
-
-		return nil
-	},
-}
-
-var inspectCmd = &cobra.Command{
-	Use:   "inspect",
-	Short: "Show current instance configuration and constraints",
-	Long:  `Displays detailed information about a Cloud SQL instance including its current configuration and scaling constraints.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		cfg := buildConfig()
-
-		analyzer, err := analyzer.NewAnalyzer(ctx, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
-		}
-		defer analyzer.Close()
-
-		// Get instance info without full analysis
-		instance, err := analyzer.GetInstance(ctx, instance)
-		if err != nil {
-			return fmt.Errorf("failed to get instance info: %w", err)
-		}
-
-		printInstanceInfo(instance)
-		return nil
-	},
-}
-
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all instances with scaling recommendations",
-	Long:  `Lists all Cloud SQL instances in the project with basic scaling recommendations.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
-		cfg := buildConfig()
-
-		projectAnalyzer, err := analyzer.NewProjectAnalyzer(ctx, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
-		}
-		defer projectAnalyzer.Close()
-
-		results, err := projectAnalyzer.AnalyzeAllInstances(ctx)
-		if err != nil {
-			return fmt.Errorf("analysis failed: %w", err)
-		}
-
-		results.PrintProjectSummary()
-		return nil
-	},
+	RunE: runAutoscaler,
 }
 
 func init() {
-	// Global flags
-	rootCmd.PersistentFlags().StringVar(&projectID, "project", "", "GCP project ID (required)")
-	rootCmd.MarkPersistentFlagRequired("project")
-
-	// Analyze command flags
-	analyzeCmd.Flags().StringVar(&instance, "instance", "", "Cloud SQL instance name (required)")
-	analyzeCmd.Flags().StringVar(&period, "period", "7d", "Analysis period (e.g., 24h, 7d, 30d)")
-	analyzeCmd.MarkFlagRequired("instance")
-
-	// Suggest command flags
-	suggestCmd.Flags().StringVar(&instance, "instance", "", "Cloud SQL instance name (required)")
-	suggestCmd.Flags().StringVar(&period, "period", "7d", "Analysis period (e.g., 24h, 7d, 30d)")
-	suggestCmd.Flags().BoolVar(&dryRun, "dry-run", true, "Show recommendation without applying")
-	suggestCmd.Flags().BoolVar(&force, "force", false, "Force scaling even if it causes downtime")
-	suggestCmd.MarkFlagRequired("instance")
-
-	// Inspect command flags
-	inspectCmd.Flags().StringVar(&instance, "instance", "", "Cloud SQL instance name (required)")
-	inspectCmd.MarkFlagRequired("instance")
-
-	// List command flags
-	listCmd.Flags().StringVar(&period, "period", "7d", "Analysis period (e.g., 24h, 7d, 30d)")
-
-	// Add commands to root
-	rootCmd.AddCommand(analyzeCmd)
-	rootCmd.AddCommand(suggestCmd)
-	rootCmd.AddCommand(inspectCmd)
-	rootCmd.AddCommand(listCmd)
+	rootCmd.Flags().StringVar(&projectID, "project", "", "GCP project ID (uses ADC default if not specified)")
+	rootCmd.Flags().StringSliceVar(&instances, "instance", []string{}, "Instance name(s) to analyze (analyzes all if not specified)")
+	rootCmd.Flags().BoolVar(&dryRun, "dry-run", true, "Show what would be done without making changes")
+	rootCmd.Flags().StringVar(&profile, "profile", "default", "Scaling profile (default, conservative, aggressive)")
+	rootCmd.Flags().StringVar(&output, "output", "table", "Output format (table, json)")
 }
 
 func main() {
@@ -173,72 +49,357 @@ func main() {
 	}
 }
 
-// buildConfig creates a config from command line flags
-func buildConfig() *config.Config {
-	cfg := config.DefaultConfig()
-	cfg.ProjectID = projectID
-	cfg.Instance = instance
-	cfg.DryRun = dryRun
-	cfg.Force = force
+type OutputResult struct {
+	Instance        string    `json:"instance"`
+	CurrentType     string    `json:"current_type"`
+	CurrentCPU      int       `json:"current_cpu"`
+	CurrentMemoryGB float64   `json:"current_memory_gb"`
+	RecommendedType string    `json:"recommended_type,omitempty"`
+	Action          string    `json:"action"`
+	Reason          string    `json:"reason"`
+	DowntimeWarning string    `json:"downtime_warning,omitempty"`
+	Applied         bool      `json:"applied"`
+	Error           string    `json:"error,omitempty"`
+	Timestamp       time.Time `json:"timestamp"`
+}
 
-	// Parse period duration
-	if period != "" {
-		if dur, err := parseDuration(period); err == nil {
-			cfg.MetricsPeriod = dur
+type OutputSummary struct {
+	ProjectID         string         `json:"project_id"`
+	TotalInstances    int            `json:"total_instances"`
+	AnalyzedInstances int            `json:"analyzed_instances"`
+	ScalingResults    []OutputResult `json:"scaling_results"`
+	Profile           string         `json:"profile"`
+	DryRun            bool           `json:"dry_run"`
+	Timestamp         time.Time      `json:"timestamp"`
+}
+
+type TableRow struct {
+	Instance         string
+	CurrentType      string
+	CurrentResources string
+	Action           string
+	RecommendedType  string
+	Status           string
+	Warning          string
+}
+
+func printTable(headers []string, rows []TableRow) {
+	if len(rows) == 0 {
+		return
+	}
+
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = len(header)
+	}
+
+	for _, row := range rows {
+		data := []string{row.Instance, row.CurrentType, row.CurrentResources, row.Action, row.RecommendedType, row.Status, row.Warning}
+		for i, cell := range data {
+			if i < len(widths) && len(cell) > widths[i] {
+				widths[i] = len(cell)
+			}
 		}
 	}
 
-	return cfg
+	printRow(headers, widths)
+	printSeparator(widths)
+	for _, row := range rows {
+		data := []string{row.Instance, row.CurrentType, row.CurrentResources, row.Action, row.RecommendedType, row.Status, row.Warning}
+		printRow(data, widths)
+	}
 }
 
-// parseDuration parses duration strings like "7d", "24h"
-func parseDuration(s string) (time.Duration, error) {
-	// Handle day suffix
-	if len(s) > 1 && s[len(s)-1] == 'd' {
-		days := s[:len(s)-1]
-		var d int
-		_, err := fmt.Sscanf(days, "%d", &d)
+func printRow(data []string, widths []int) {
+	row := "| "
+	for i, cell := range data {
+		if i < len(widths) {
+			row += fmt.Sprintf("%-*s | ", widths[i], cell)
+		}
+	}
+	fmt.Println(row)
+}
+
+func printSeparator(widths []int) {
+	row := "|-"
+	for _, width := range widths {
+		row += strings.Repeat("-", width) + "-|-"
+	}
+	fmt.Println(row)
+}
+
+func logf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+
+func runAutoscaler(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	if projectID == "" {
+		var err error
+		projectID, err = getDefaultProjectID(ctx)
 		if err != nil {
-			return 0, err
+			return fmt.Errorf("project not specified and could not determine default: %w", err)
 		}
-		return time.Duration(d) * 24 * time.Hour, nil
+		logf("Using project: %s\n", projectID)
 	}
 
-	// Try standard duration parsing
-	return time.ParseDuration(s)
+	cfg := buildConfigFromProfile(profile)
+	cfg.ProjectID = projectID
+	cfg.DryRun = dryRun
+
+	projectAnalyzer, err := analyzer.NewProjectAnalyzer(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create analyzer: %w", err)
+	}
+	defer projectAnalyzer.Close()
+
+	if output != "table" && output != "json" {
+		return fmt.Errorf("invalid output format: %s (must be 'table' or 'json')", output)
+	}
+
+	if len(instances) > 0 {
+		return analyzeSpecificInstances(ctx, projectAnalyzer, instances)
+	}
+	return analyzeAllInstances(ctx, projectAnalyzer)
 }
 
-// printInstanceInfo prints formatted instance information
-func printInstanceInfo(instance *config.InstanceInfo) {
-	fmt.Printf("\n=== Cloud SQL Instance Information ===\n")
-	fmt.Printf("Name: %s\n", instance.Name)
-	fmt.Printf("Project: %s\n", instance.Project)
-	fmt.Printf("Database Version: %s\n", instance.DatabaseVersion)
-	fmt.Printf("State: %s\n", instance.State)
-	fmt.Printf("\nConfiguration:\n")
-	fmt.Printf("  Machine Type: %s\n", instance.MachineType)
-	fmt.Printf("  Edition: %s\n", instance.Edition)
-	fmt.Printf("  CPU: %d vCPUs\n", instance.CurrentCPU)
-	fmt.Printf("  Memory: %.1f GB\n", instance.CurrentMemoryGB)
-	fmt.Printf("  Region: %s\n", instance.Region)
-	if instance.Zone != "" {
-		fmt.Printf("  Zone: %s\n", instance.Zone)
+func analyzeSpecificInstances(ctx context.Context, analyzer *analyzer.ProjectAnalyzer, instances []string) error {
+	var results []OutputResult
+	var tableRows []TableRow
+
+	logf("Analyzing %d specified instance(s)...\n", len(instances))
+
+	var hasErrors bool
+	for _, instanceName := range instances {
+		logf("Analyzing instance: %s\n", instanceName)
+
+		outputResult := OutputResult{Instance: instanceName, Applied: false, Timestamp: time.Now()}
+		tableRow := TableRow{Instance: instanceName}
+
+		result, err := analyzer.AnalyzeInstance(ctx, instanceName)
+		if err != nil {
+			outputResult.Error = err.Error()
+			outputResult.Action = "error"
+			outputResult.Reason = "Failed to analyze instance"
+			tableRow.Action = "ERROR"
+			tableRow.Status = "Failed"
+			tableRow.Warning = "Analysis failed"
+			logf("  Error: %v\n", err)
+			hasErrors = true
+			results = append(results, outputResult)
+			tableRows = append(tableRows, tableRow)
+			continue
+		}
+
+		outputResult.CurrentType = result.Instance.MachineType
+		outputResult.CurrentCPU = result.Instance.CurrentCPU
+		outputResult.CurrentMemoryGB = result.Instance.CurrentMemoryGB
+		tableRow.CurrentType = result.Instance.MachineType
+		tableRow.CurrentResources = fmt.Sprintf("%d CPU, %.1f GB", result.Instance.CurrentCPU, result.Instance.CurrentMemoryGB)
+
+		if result.Decision.ShouldScale {
+			// Determine scale direction
+			currentMT, _ := config.GetMachineType(result.Instance.MachineType)
+			recommendedMT, _ := config.GetMachineType(result.Decision.RecommendedType)
+
+			var action string
+			if recommendedMT.CPU > currentMT.CPU || recommendedMT.MemoryGB > currentMT.MemoryGB {
+				action = "SCALE_UP"
+			} else {
+				action = "SCALE_DOWN"
+			}
+
+			outputResult.Action = strings.ToLower(action)
+			outputResult.RecommendedType = result.Decision.RecommendedType
+			outputResult.Reason = result.Decision.Reason
+			tableRow.Action = action
+			tableRow.RecommendedType = result.Decision.RecommendedType
+
+			if result.Decision.DowntimeExpected {
+				outputResult.DowntimeWarning = result.Decision.DowntimeReason
+				tableRow.Warning = "Downtime expected"
+			}
+
+			if !dryRun {
+				logf("  Applying scaling from %s to %s...\n", result.Instance.MachineType, result.Decision.RecommendedType)
+				if err := analyzer.ApplyScaling(ctx, instanceName, result.Decision); err != nil {
+					outputResult.Error = err.Error()
+					tableRow.Status = "FAILED"
+					tableRow.Warning = "Scaling failed"
+					logf("  Failed: %v\n", err)
+					hasErrors = true
+				} else {
+					outputResult.Applied = true
+					tableRow.Status = "SUCCESS"
+					logf("  Success\n")
+				}
+			} else {
+				tableRow.Status = "DRY-RUN"
+			}
+		} else {
+			outputResult.Action = "no_action"
+			outputResult.Reason = result.Decision.Reason
+			tableRow.Action = "NONE"
+			tableRow.Status = "OK"
+		}
+
+		results = append(results, outputResult)
+		tableRows = append(tableRows, tableRow)
 	}
-	fmt.Printf("  High Availability: %v\n", instance.HighAvailability)
-	fmt.Printf("  Backup Enabled: %v\n", instance.BackupEnabled)
 
-	if !instance.LastScaledTime.IsZero() {
-		fmt.Printf("\nLast Scaled: %s (%s ago)\n",
-			instance.LastScaledTime.Format(time.RFC3339),
-			time.Since(instance.LastScaledTime).Round(time.Minute))
+	if output == "json" {
+		summary := OutputSummary{
+			ProjectID: projectID, TotalInstances: len(instances), AnalyzedInstances: len(instances) - countErrors(results),
+			ScalingResults: results, Profile: profile, DryRun: dryRun, Timestamp: time.Now(),
+		}
+		jsonOutput, err := json.MarshalIndent(summary, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON output: %w", err)
+		}
+		fmt.Println(string(jsonOutput))
+	} else {
+		headers := []string{"Instance", "Current Type", "Resources", "Action", "Recommended", "Status", "Warning"}
+		printTable(headers, tableRows)
 	}
 
-	// Show scaling constraints
-	constraints := config.GetScalingConstraints(instance.Edition)
-	fmt.Printf("\nScaling Constraints:\n")
-	fmt.Printf("  Minimum Upscale Interval: %s\n", constraints.MinUpscaleInterval)
-	fmt.Printf("  Minimum Downscale Interval: %s\n", constraints.MinDownscaleInterval)
-	fmt.Printf("  Downtime on Scale: %v\n", constraints.DowntimeOnScale)
+	if hasErrors {
+		return fmt.Errorf("some instances had errors")
+	}
+	return nil
+}
 
-	fmt.Println()
+func analyzeAllInstances(ctx context.Context, analyzer *analyzer.ProjectAnalyzer) error {
+	results, err := analyzer.AnalyzeAllInstances(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to analyze instances: %w", err)
+	}
+
+	var outputResults []OutputResult
+	var tableRows []TableRow
+	scalable := results.GetScalableInstances()
+
+	logf("Total instances: %d, Analyzed: %d, Need scaling: %d\n", results.TotalInstances, results.AnalyzedInstances, len(scalable))
+
+	var hasErrors bool
+	for _, result := range results.Results {
+		outputResult := OutputResult{
+			Instance: result.Instance.Name, CurrentType: result.Instance.MachineType,
+			CurrentCPU: result.Instance.CurrentCPU, CurrentMemoryGB: result.Instance.CurrentMemoryGB,
+			Applied: false, Timestamp: time.Now(),
+		}
+		tableRow := TableRow{
+			Instance: result.Instance.Name, CurrentType: result.Instance.MachineType,
+			CurrentResources: fmt.Sprintf("%d CPU, %.1f GB", result.Instance.CurrentCPU, result.Instance.CurrentMemoryGB),
+		}
+
+		if result.Decision.ShouldScale {
+			// Determine scale direction
+			currentMT, _ := config.GetMachineType(result.Instance.MachineType)
+			recommendedMT, _ := config.GetMachineType(result.Decision.RecommendedType)
+
+			var action string
+			if recommendedMT.CPU > currentMT.CPU || recommendedMT.MemoryGB > currentMT.MemoryGB {
+				action = "SCALE_UP"
+			} else {
+				action = "SCALE_DOWN"
+			}
+
+			outputResult.Action = strings.ToLower(action)
+			outputResult.RecommendedType = result.Decision.RecommendedType
+			outputResult.Reason = result.Decision.Reason
+			tableRow.Action = action
+			tableRow.RecommendedType = result.Decision.RecommendedType
+
+			if result.Decision.DowntimeExpected {
+				outputResult.DowntimeWarning = result.Decision.DowntimeReason
+				tableRow.Warning = "Downtime expected"
+			}
+
+			if !dryRun {
+				logf("Applying scaling for %s from %s to %s...\n", result.Instance.Name, result.Instance.MachineType, result.Decision.RecommendedType)
+				if err := analyzer.ApplyScaling(ctx, result.Instance.Name, result.Decision); err != nil {
+					outputResult.Error = err.Error()
+					tableRow.Status = "FAILED"
+					tableRow.Warning = "Scaling failed"
+					logf("  Failed: %v\n", err)
+					hasErrors = true
+				} else {
+					outputResult.Applied = true
+					tableRow.Status = "SUCCESS"
+					logf("  Success\n")
+				}
+			} else {
+				tableRow.Status = "DRY-RUN"
+			}
+		} else {
+			outputResult.Action = "no_action"
+			outputResult.Reason = result.Decision.Reason
+			tableRow.Action = "NONE"
+			tableRow.Status = "OK"
+		}
+
+		outputResults = append(outputResults, outputResult)
+		tableRows = append(tableRows, tableRow)
+	}
+
+	if output == "json" {
+		summary := OutputSummary{
+			ProjectID: projectID, TotalInstances: results.TotalInstances, AnalyzedInstances: results.AnalyzedInstances,
+			ScalingResults: outputResults, Profile: profile, DryRun: dryRun, Timestamp: time.Now(),
+		}
+		jsonOutput, err := json.MarshalIndent(summary, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON output: %w", err)
+		}
+		fmt.Println(string(jsonOutput))
+	} else {
+		headers := []string{"Instance", "Current Type", "Resources", "Action", "Recommended", "Status", "Warning"}
+		printTable(headers, tableRows)
+	}
+
+	if hasErrors {
+		return fmt.Errorf("some instances had errors during scaling")
+	}
+	return nil
+}
+
+func countErrors(results []OutputResult) int {
+	count := 0
+	for _, result := range results {
+		if result.Error != "" {
+			count++
+		}
+	}
+	return count
+}
+
+func getDefaultProjectID(ctx context.Context) (string, error) {
+	if metadata.OnGCE() {
+		project, err := metadata.ProjectID()
+		if err == nil {
+			return project, nil
+		}
+	}
+	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
+		return project, nil
+	}
+	return "", fmt.Errorf("unable to determine project ID from Application Default Credentials")
+}
+
+func buildConfigFromProfile(profile string) *config.Config {
+	cfg := config.DefaultConfig()
+	switch profile {
+	case "conservative":
+		cfg.ScaleUpThreshold = 0.9
+		cfg.ScaleDownThreshold = 0.3
+		cfg.MinStableDuration = 2 * time.Hour
+		cfg.MetricsPeriod = 14 * 24 * time.Hour
+	case "aggressive":
+		cfg.ScaleUpThreshold = 0.7
+		cfg.ScaleDownThreshold = 0.6
+		cfg.MinStableDuration = 30 * time.Minute
+		cfg.MetricsPeriod = 3 * 24 * time.Hour
+	}
+	return cfg
 }

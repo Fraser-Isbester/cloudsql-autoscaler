@@ -13,7 +13,7 @@ import (
 
 // Client wraps the Cloud SQL Admin API client
 type Client struct {
-	service   *sqladmin.Service
+	Service   *sqladmin.Service // Exported for raw API access
 	projectID string
 }
 
@@ -25,14 +25,14 @@ func NewClient(ctx context.Context, projectID string, opts ...option.ClientOptio
 	}
 
 	return &Client{
-		service:   service,
+		Service:   service,
 		projectID: projectID,
 	}, nil
 }
 
 // GetInstance retrieves information about a Cloud SQL instance
 func (c *Client) GetInstance(ctx context.Context, instanceName string) (*config.InstanceInfo, error) {
-	instance, err := c.service.Instances.Get(c.projectID, instanceName).Context(ctx).Do()
+	instance, err := c.Service.Instances.Get(c.projectID, instanceName).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get instance %s: %w", instanceName, err)
 	}
@@ -88,7 +88,7 @@ func (c *Client) GetInstance(ctx context.Context, instanceName string) (*config.
 func (c *Client) ListInstances(ctx context.Context) ([]*config.InstanceInfo, error) {
 	var instances []*config.InstanceInfo
 
-	resp, err := c.service.Instances.List(c.projectID).Context(ctx).Do()
+	resp, err := c.Service.Instances.List(c.projectID).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %w", err)
 	}
@@ -109,7 +109,7 @@ func (c *Client) ListInstances(ctx context.Context) ([]*config.InstanceInfo, err
 // UpdateMachineType updates the machine type of an instance
 func (c *Client) UpdateMachineType(ctx context.Context, instanceName string, newMachineType string) error {
 	// Get current instance to preserve settings
-	instance, err := c.service.Instances.Get(c.projectID, instanceName).Context(ctx).Do()
+	instance, err := c.Service.Instances.Get(c.projectID, instanceName).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("failed to get instance for update: %w", err)
 	}
@@ -118,7 +118,7 @@ func (c *Client) UpdateMachineType(ctx context.Context, instanceName string, new
 	instance.Settings.Tier = newMachineType
 
 	// Perform the update
-	operation, err := c.service.Instances.Update(c.projectID, instanceName, instance).Context(ctx).Do()
+	operation, err := c.Service.Instances.Update(c.projectID, instanceName, instance).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("failed to update instance machine type: %w", err)
 	}
@@ -133,7 +133,7 @@ func (c *Client) UpdateMachineType(ctx context.Context, instanceName string, new
 
 // GetRecentOperations retrieves recent operations for an instance
 func (c *Client) GetRecentOperations(ctx context.Context, instanceName string, limit int) ([]*sqladmin.Operation, error) {
-	resp, err := c.service.Operations.List(c.projectID).
+	resp, err := c.Service.Operations.List(c.projectID).
 		MaxResults(int64(limit)).
 		Context(ctx).
 		Do()
@@ -155,7 +155,7 @@ func (c *Client) GetRecentOperations(ctx context.Context, instanceName string, l
 // waitForOperation waits for a Cloud SQL operation to complete
 func (c *Client) waitForOperation(ctx context.Context, operation *sqladmin.Operation) error {
 	for {
-		op, err := c.service.Operations.Get(c.projectID, operation.Name).Context(ctx).Do()
+		op, err := c.Service.Operations.Get(c.projectID, operation.Name).Context(ctx).Do()
 		if err != nil {
 			return fmt.Errorf("failed to get operation status: %w", err)
 		}
