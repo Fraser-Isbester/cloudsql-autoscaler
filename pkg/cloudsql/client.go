@@ -73,14 +73,6 @@ func (c *Client) GetInstance(ctx context.Context, instanceName string) (*config.
 		info.Zone = instance.GceZone
 	}
 
-	// Get max connections from database flags if set
-	for _, flag := range instance.Settings.DatabaseFlags {
-		if flag.Name == "max_connections" {
-			// Parse max connections value
-			// Note: Proper parsing would be needed here
-		}
-	}
-
 	return info, nil
 }
 

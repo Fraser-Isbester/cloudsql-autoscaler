@@ -31,30 +31,30 @@ var _ = Describe("EstimateCostSavings", func() {
 })
 
 var _ = Describe("ValidateScaling", func() {
-	newRunnableInstance := func(machineType string) *config.InstanceInfo {
+	newRunnableInstance := func() *config.InstanceInfo {
 		return &config.InstanceInfo{
 			Name:        "test-instance",
-			MachineType: machineType,
+			MachineType: "db-n2-standard-4",
 			State:       "RUNNABLE",
 		}
 	}
 
 	It("errors when the target machine type equals the current type", func() {
-		instance := newRunnableInstance("db-n2-standard-4")
+		instance := newRunnableInstance()
 		err := ValidateScaling(instance, "db-n2-standard-4")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("same as current"))
 	})
 
 	It("errors when the machine series would change", func() {
-		instance := newRunnableInstance("db-n2-standard-4")
+		instance := newRunnableInstance()
 		err := ValidateScaling(instance, "db-e2-standard-4")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cannot change machine series"))
 	})
 
 	It("errors when the instance is not in RUNNABLE state", func() {
-		instance := newRunnableInstance("db-n2-standard-4")
+		instance := newRunnableInstance()
 		instance.State = "STOPPED"
 		err := ValidateScaling(instance, "db-n2-standard-2")
 		Expect(err).To(HaveOccurred())
@@ -62,7 +62,7 @@ var _ = Describe("ValidateScaling", func() {
 	})
 
 	It("succeeds for a valid same-series change on a RUNNABLE instance", func() {
-		instance := newRunnableInstance("db-n2-standard-4")
+		instance := newRunnableInstance()
 		err := ValidateScaling(instance, "db-n2-standard-2")
 		Expect(err).ToNot(HaveOccurred())
 	})

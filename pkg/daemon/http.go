@@ -68,7 +68,7 @@ func (s *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 		"service":   "cloudsql-autoscaler",
 	}
 
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // readinessHandler responds to readiness probe requests
@@ -84,7 +84,7 @@ func (s *HTTPServer) readinessHandler(w http.ResponseWriter, r *http.Request) {
 			"status": "not ready",
 			"reason": "daemon not initialized",
 		}
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (s *HTTPServer) readinessHandler(w http.ResponseWriter, r *http.Request) {
 		"timestamp": time.Now().UTC(),
 	}
 
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // statusHandler provides detailed daemon status
@@ -106,11 +106,11 @@ func (s *HTTPServer) statusHandler(w http.ResponseWriter, r *http.Request) {
 		response := map[string]interface{}{
 			"error": "daemon not available",
 		}
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	status := s.daemon.GetStatus()
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(status)
+	_ = json.NewEncoder(w).Encode(status)
 }
