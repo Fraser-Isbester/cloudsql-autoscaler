@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cloudsql-autoscaler — right-size your Cloud SQL instances automatically</title>
+    <meta
+      name="description"
+      content="cloudsql-autoscaler automatically right-sizes Google Cloud SQL instances using P95 metrics analysis. CLI, Docker, and Kubernetes modes with downtime-aware, edition-aware scaling."
+    />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="nav-brand" href="./index.html">cloudsql-autoscaler</a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="https://github.com/fraser-isbester/cloudsql-autoscaler">GitHub&nbsp;↗</a>
+      </nav>
+    </header>
+
+    <main>
+      <!-- Hero -->
+      <div class="hero">
+        <pre class="logo" aria-label="cloudsql-autoscaler">
+      _                 _           _
+  ___| | ___  _   _  __| |___  __ _| |
+ / __| |/ _ \| | | |/ _` / __|/ _` | |
+| (__| | (_) | |_| | (_| \__ \ (_| | |
+ \___|_|\___/ \__,_|\__,_|___/\__, |_|
+                                 |_|
+             _                      _
+  __ _ _   _| |_ ___  ___  ___ __ _| | ___ _ __
+ / _` | | | | __/ _ \/ __|/ __/ _` | |/ _ \ '__|
+| (_| | |_| | || (_) \__ \ (_| (_| | |  __/ |
+ \__,_|\__,_|\__\___/|___/\___\__,_|_|\___|_|</pre
+        >
+        <p class="tagline">Right-size your Cloud SQL instances automatically.</p>
+        <p class="sub">
+          A tool for Google Cloud SQL that analyzes real utilization and
+          recommends — or applies — the right machine type. It looks at sustained
+          load instead of momentary spikes, respects edition
+          <span class="accent-amber">downtime constraints</span>, and runs as a
+          one-shot CLI or a continuous daemon.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+          </div>
+          <pre><code><span class="comment"># Install</span>
+<span class="prompt">$</span> go install github.com/fraser-isbester/cloudsql-autoscaler/cmd/cloudsql-autoscaler@latest
+
+<span class="comment"># Analyze all instances (dry-run by default)</span>
+<span class="prompt">$</span> cloudsql-autoscaler --project my-gcp-project
+
+<span class="comment"># Apply scaling recommendations</span>
+<span class="prompt">$</span> cloudsql-autoscaler --project my-gcp-project --dry-run=false</code></pre>
+        </div>
+
+        <div class="btn-row">
+          <a
+            class="btn btn-primary"
+            href="https://github.com/fraser-isbester/cloudsql-autoscaler"
+            >View on GitHub</a
+          >
+          <a
+            class="btn"
+            href="https://github.com/fraser-isbester/cloudsql-autoscaler/releases"
+            >Download binaries</a
+          >
+        </div>
+      </div>
+
+      <!-- What is it -->
+      <section>
+        <div class="wrap">
+          <h2>What is it?</h2>
+          <p>
+            <span class="accent">cloudsql-autoscaler</span> watches your Cloud SQL
+            instances and figures out when they're over- or under-provisioned. It
+            pulls three days of CPU and memory data from Cloud Monitoring, uses
+            <span class="accent">P95 percentiles</span> to separate real sustained
+            load from temporary spikes, and recommends machine-type changes within
+            safe constraints.
+          </p>
+          <p>
+            Scaling on Cloud SQL isn't free — some changes require a restart. The
+            autoscaler understands the difference between
+            <span class="accent-green">Enterprise Plus</span> near-zero-downtime
+            windows and <span class="accent-amber">Enterprise</span> edition
+            downtime requirements, so it can apply changes safely. Run it once from
+            your laptop, on a schedule, or as an always-on daemon in your cluster.
+          </p>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section id="features">
+        <div class="wrap">
+          <h2>Features</h2>
+          <div class="grid">
+            <div class="card">
+              <h3><span class="tag">01</span>Smart P95 analysis</h3>
+              <p>
+                Uses 3 days of CPU/memory metrics and P95 percentiles to identify
+                sustained load and avoid scaling on temporary spikes.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="tag">02</span>Downtime aware</h3>
+              <p>
+                Understands <span class="accent-green">Enterprise Plus</span>
+                zero-downtime windows versus
+                <span class="accent-amber">Enterprise</span> edition downtime
+                requirements before applying changes.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="tag">03</span>CLI · Docker · Kubernetes</h3>
+              <p>
+                Run it as a one-shot CLI, a Docker container, or a Kubernetes
+                deployment with Workload Identity.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="tag">04</span>Scaling profiles</h3>
+              <p>
+                Choose <code>conservative</code>, <code>default</code>, or
+                <code>aggressive</code> profiles to tune how eagerly it resizes.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="tag">05</span>Prometheus &amp; health</h3>
+              <p>
+                Built-in Prometheus metrics plus <code>/health</code>,
+                <code>/ready</code>, and <code>/status</code> endpoints for
+                daemon mode.
+              </p>
+            </div>
+            <div class="card">
+              <h3><span class="tag">06</span>Dry-run by default</h3>
+              <p>
+                Recommendations are shown as <code>table</code> or
+                <code>json</code>; nothing changes until you pass
+                <code>--dry-run=false</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Deployment -->
+      <section id="deployment">
+        <div class="wrap">
+          <h2>Deployment</h2>
+          <p>
+            Ship it however you run infrastructure. Pull the container image and
+            run it as a daemon, or deploy the bundled Kubernetes manifests.
+          </p>
+
+          <div class="deploy-block">
+            <h3>Docker</h3>
+            <pre><code><span class="comment"># Pull and run as a daemon</span>
+docker run -d \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/creds.json \
+  -v /path/to/creds.json:/creds.json:ro \
+  ghcr.io/fraser-isbester/cloudsql-autoscaler:latest \
+  --daemon --project my-gcp-project</code></pre>
+          </div>
+
+          <div class="deploy-block">
+            <h3>Kubernetes</h3>
+            <pre><code><span class="comment"># Clone and deploy</span>
+git clone https://github.com/fraser-isbester/cloudsql-autoscaler.git
+cd cloudsql-autoscaler
+make deploy-k8s
+
+<span class="comment"># Check status</span>
+make k8s-status
+make k8s-logs</code></pre>
+            <p class="muted">
+              Requires a GKE cluster with Workload Identity enabled and a service
+              account with Cloud SQL Admin permissions.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>cloudsql-autoscaler · © 2026 Fraser Isbester</p>
+      <p>
+        <a href="https://github.com/fraser-isbester/cloudsql-autoscaler"
+          >github.com/fraser-isbester/cloudsql-autoscaler</a
+        >
+      </p>
+    </footer>
+  </body>
+</html>

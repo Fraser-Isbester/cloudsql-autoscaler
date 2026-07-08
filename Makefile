@@ -1,4 +1,4 @@
-.PHONY: build clean test fmt vet install help docker-build docker-push docker-run deploy-k8s undeploy-k8s
+.PHONY: build clean test fmt vet vuln install help docker-build docker-push docker-run deploy-k8s undeploy-k8s
 .DEFAULT_GOAL := help
 
 # Build variables
@@ -44,8 +44,12 @@ fmt:
 vet:
 	go vet ./...
 
-## Run all checks (fmt, vet, build, test)
-check: fmt vet build test
+## Run govulncheck
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+## Run all checks (fmt, vet, vuln, build, test)
+check: fmt vet vuln build test
 
 ## Clean build artifacts
 clean:

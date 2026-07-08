@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for cloudsql-autoscaler
 # Stage 1: Build environment
-FROM golang:1.24.4-alpine AS builder
+FROM golang:1.26.5-alpine AS builder
 
 # Set working directory
 WORKDIR /app

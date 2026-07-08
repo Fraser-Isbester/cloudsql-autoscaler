@@ -1,5 +1,7 @@
 # CloudSQL Autoscaler
 
+**Website:** https://fraser-isbester.github.io/cloudsql-autoscaler/
+
 Automatically scales Google Cloud SQL instances based on CPU and memory utilization patterns. Supports both one-shot CLI usage and continuous daemon mode for production deployments.
 
 ## Features

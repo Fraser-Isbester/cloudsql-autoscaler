@@ -162,7 +162,7 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 
 	// Handle daemon mode
 	if daemonMode {
-		return runDaemon(ctx, cfg)
+		return runDaemon(cfg)
 	}
 
 	// Handle one-shot mode
@@ -170,7 +170,7 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create analyzer: %w", err)
 	}
-	defer projectAnalyzer.Close()
+	defer func() { _ = projectAnalyzer.Close() }()
 
 	if output != "table" && output != "json" {
 		return fmt.Errorf("invalid output format: %s (must be 'table' or 'json')", output)
@@ -182,7 +182,7 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 	return analyzeAllInstances(ctx, projectAnalyzer)
 }
 
-func runDaemon(ctx context.Context, cfg *config.Config) error {
+func runDaemon(cfg *config.Config) error {
 	// Initialize metrics if enabled
 	if enableMetrics {
 		daemon.InitMetrics()
@@ -416,7 +416,7 @@ func countErrors(results []OutputResult) int {
 
 func getDefaultProjectID(ctx context.Context) (string, error) {
 	if metadata.OnGCE() {
-		project, err := metadata.ProjectID()
+		project, err := metadata.ProjectIDWithContext(ctx)
 		if err == nil {
 			return project, nil
 		}
