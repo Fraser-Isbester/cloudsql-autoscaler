@@ -114,7 +114,7 @@ jobs:
         context: .
         file: ./Dockerfile
         push: false
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+        tags: ${{ env.REGISTRY }}/fraser-isbester/cloudsql-autoscaler:test
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
