@@ -36,6 +36,7 @@ cloudsql-autoscaler --project my-gcp-project --instance db1 --instance db2
 --project string       GCP project ID
 --instance strings     Specific instance(s) to analyze (default: all)
 --dry-run             Show recommendations without applying (default: true)
+--force               Apply scales that cause downtime (default: false)
 --output string       Format: table or json (default: table)
 
 # Daemon mode for continuous operation
