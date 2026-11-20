@@ -108,11 +108,16 @@ var _ = Describe("Daemon wiring (assembleDaemon)", func() {
 	})
 
 	It("serves a passing readiness probe (deploy/kubernetes probes /ready)", func() {
-		Skip("BUG: NewDaemon builds its HTTPServer with daemon: nil and never sets it, so /ready and /status " +
-			"always return 503 and the Kubernetes readinessProbe never passes")
 		d := testDaemon(true, &fakeAnalyzer{})
 		code, _ := call(d.httpServer.(*HTTPServer).readinessHandler, "/ready")
 		Expect(code).To(Equal(http.StatusOK))
+	})
+
+	It("serves the assembled daemon's own status on /status", func() {
+		d := testDaemon(true, &fakeAnalyzer{})
+		code, body := call(d.httpServer.(*HTTPServer).statusHandler, "/status")
+		Expect(code).To(Equal(http.StatusOK))
+		Expect(body).To(HaveKeyWithValue("project_id", "test-project"))
 	})
 })
 

@@ -63,19 +63,17 @@ func assembleDaemon(ctx context.Context, cancel context.CancelFunc, cfg *config.
 
 	runner := NewAutoscalingRunner(a, daemonConfig, metricsReporter)
 
-	httpServer := &HTTPServer{
-		port:   daemonCfg.HTTPPort,
-		daemon: nil, // Will be set after daemon creation
-	}
-
-	return &Daemon{
+	d := &Daemon{
 		config:        daemonConfig,
 		runner:        runner,
-		httpServer:    httpServer,
 		signalHandler: NewOSSignalHandler(),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
+	// The server reports on the daemon it serves; without the back-reference
+	// /ready and /status answer 503 forever.
+	d.httpServer = NewHTTPServer(daemonCfg.HTTPPort, d)
+	return d
 }
 
 // Start begins the daemon operation using improved composition
