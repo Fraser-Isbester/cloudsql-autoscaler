@@ -89,8 +89,18 @@ var _ = Describe("CLI flags", func() {
 	})
 
 	It("exposes the --force flag that downtime errors tell the user to pass", func() {
-		Skip("BUG: ValidateScalingDecision says 'Use --force to proceed' but no --force flag exists and " +
-			"Config.Force is never set, so Enterprise-edition instances can never be scaled by the tool")
-		Expect(rootCmd.Flags().Lookup("force")).NotTo(BeNil())
+		f := rootCmd.Flags().Lookup("force")
+		Expect(f).NotTo(BeNil())
+		// Off by default: a downtime-causing scale must be an explicit choice.
+		Expect(f.DefValue).To(Equal("false"))
+	})
+
+	It("carries --force into the config the analyzer validates against", func() {
+		DeferCleanup(func(prev bool) { force = prev }, force)
+
+		force = true
+		Expect(configFromFlags().Force).To(BeTrue())
+		force = false
+		Expect(configFromFlags().Force).To(BeFalse())
 	})
 })

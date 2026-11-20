@@ -20,6 +20,7 @@ var (
 	projectID string
 	instances []string
 	dryRun    bool
+	force     bool
 	profile   string
 	output    string
 	// Daemon mode flags
@@ -44,6 +45,7 @@ func init() {
 	rootCmd.Flags().StringVar(&projectID, "project", "", "GCP project ID (uses ADC default if not specified)")
 	rootCmd.Flags().StringSliceVar(&instances, "instance", []string{}, "Instance name(s) to analyze (analyzes all if not specified)")
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", true, "Show what would be done without making changes")
+	rootCmd.Flags().BoolVar(&force, "force", false, "Apply scaling operations that cause downtime (Enterprise edition, or inside the Enterprise Plus intervals)")
 	rootCmd.Flags().StringVar(&profile, "profile", "default", "Scaling profile (default, conservative, aggressive)")
 	rootCmd.Flags().StringVar(&output, "output", "table", "Output format (table, json)")
 
@@ -156,9 +158,7 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 		logf("Using project: %s\n", projectID)
 	}
 
-	cfg := buildConfigFromProfile(profile)
-	cfg.ProjectID = projectID
-	cfg.DryRun = dryRun
+	cfg := configFromFlags()
 
 	// Handle daemon mode
 	if daemonMode {
@@ -180,6 +180,16 @@ func runAutoscaler(cmd *cobra.Command, args []string) error {
 		return analyzeSpecificInstances(ctx, projectAnalyzer, instances)
 	}
 	return analyzeAllInstances(ctx, projectAnalyzer)
+}
+
+// configFromFlags builds the run's config from the profile and the flags that
+// override it.
+func configFromFlags() *config.Config {
+	cfg := buildConfigFromProfile(profile)
+	cfg.ProjectID = projectID
+	cfg.DryRun = dryRun
+	cfg.Force = force
+	return cfg
 }
 
 func runDaemon(cfg *config.Config) error {
