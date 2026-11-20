@@ -116,3 +116,12 @@ curl http://localhost:8080/metrics  # Prometheus metrics
 - Standard: `db-f1-micro`, `db-g1-small`, `db-n1-*`, `db-n2-*`, `db-e2-*`
 - Custom: `db-custom-{vcpus}-{memory_mb}`
 - Performance: `db-perf-optimized-N-*`
+## Testing
+
+```bash
+make test   # go test -race -count=1 ./...
+```
+
+Tests never call real GCP. `internal/fakegcp` runs an in-process Cloud SQL Admin (REST, `httptest`) and Cloud Monitoring (gRPC, loopback) fake; the real client libraries are pointed at them, so request construction and response decoding are covered. The daemon loop runs on a `testing/synctest` fake clock.
+
+Specs that pin a known bug are marked `Skip("BUG: ...")`; delete the `Skip` once the bug is fixed.

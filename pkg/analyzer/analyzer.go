@@ -30,14 +30,18 @@ func NewAnalyzer(ctx context.Context, cfg *config.Config) (*Analyzer, error) {
 		return nil, fmt.Errorf("failed to create metrics client: %w", err)
 	}
 
-	rulesEngine := rules.NewEngine(cfg)
+	return newAnalyzer(cfg, sqlClient, metricsClient), nil
+}
 
+// newAnalyzer wires an Analyzer from already-constructed clients. It is the
+// seam tests use to point the analyzer at fake Cloud SQL / Monitoring backends.
+func newAnalyzer(cfg *config.Config, sqlClient *cloudsql.Client, metricsClient *cloudsql.MetricsClient) *Analyzer {
 	return &Analyzer{
 		sqlClient:     sqlClient,
 		metricsClient: metricsClient,
-		rulesEngine:   rulesEngine,
+		rulesEngine:   rules.NewEngine(cfg),
 		config:        cfg,
-	}, nil
+	}
 }
 
 // Close closes all clients

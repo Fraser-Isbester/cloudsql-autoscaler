@@ -7,7 +7,6 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.26'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -22,7 +21,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: go.mod
         cache: true
 
     - name: Verify dependencies
@@ -31,8 +30,13 @@ jobs:
     - name: Build
       run: make build
 
-    - name: Run tests
+    - name: Run tests (race detector, fake GCP backends; no cloud access)
       run: make test
+
+    - name: Coverage summary
+      run: |
+        go test -count=1 -coverprofile=coverage.out ./... > /dev/null
+        go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
 
     - name: Run vet
       run: make vet
@@ -55,7 +59,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: go.mod
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
@@ -72,7 +76,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: go.mod
 
     - name: Install govulncheck
       run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
@@ -90,7 +94,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: go.mod
 
     - name: Check go mod tidy
       run: |
@@ -130,7 +134,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version-file: go.mod
 
     - name: Build binary
       run: make build

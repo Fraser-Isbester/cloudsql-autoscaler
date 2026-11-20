@@ -29,7 +29,7 @@ install:
 
 ## Run tests
 test:
-	go test -v ./...
+	go test -race -count=1 ./...
 
 ## Run tests with coverage
 test-coverage:
