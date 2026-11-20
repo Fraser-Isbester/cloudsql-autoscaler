@@ -36,10 +36,35 @@ var _ = Describe("Engine decision boundaries", func() {
 		Entry("CPU just above the up threshold scales up", 80.01, 60.0, true, "db-n2-standard-8"),
 		Entry("memory alone above the up threshold scales up", 10.0, 85.0, true, "db-n2-standard-8"),
 		Entry("both exactly at the down threshold hold", 50.0, 50.0, false, ""),
-		Entry("both just below the down threshold scale down", 49.99, 49.99, true, "db-n2-standard-2"),
+		// Halving capacity would put 49.99% at ~100%, past the up threshold, so
+		// the hysteresis guard holds instead of flapping (#10). The strict
+		// down-threshold boundary itself is covered below with a wider band.
+		Entry("just below the down threshold but would flap back holds", 49.99, 49.99, false, ""),
 		Entry("low CPU but busy memory does not scale down", 10.0, 70.0, false, ""),
 		Entry("low memory but busy CPU does not scale down", 70.0, 10.0, false, ""),
 	)
+
+	It("scales down strictly below the down threshold when the band is wide enough not to flap", func() {
+		cfg := config.DefaultConfig()
+		cfg.ScaleUpThreshold = 1.0 // 49.99% projects to 99.98% on half the capacity
+		e := NewEngine(cfg)
+
+		d, err := e.AnalyzeInstance(instance, metrics(49.99, 49.99))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(d.ShouldScale).To(BeTrue())
+		Expect(d.RecommendedType).To(Equal("db-n2-standard-2"))
+
+		d, err = e.AnalyzeInstance(instance, metrics(50.0, 50.0))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(d.ShouldScale).To(BeFalse())
+	})
+
+	It("still scales down under the default profile once the load fits the smaller size", func() {
+		d, err := engine.AnalyzeInstance(instance, metrics(39.0, 39.0))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(d.ShouldScale).To(BeTrue())
+		Expect(d.RecommendedType).To(Equal("db-n2-standard-2"))
+	})
 
 	It("requires at least 10 data points", func() {
 		m := metrics(95, 95)

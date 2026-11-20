@@ -65,6 +65,13 @@ func (e *Engine) AnalyzeInstance(instance *config.InstanceInfo, metrics *config.
 			decision.Reason = fmt.Sprintf("Cannot scale down: %v", err)
 			return decision, nil
 		}
+		if cpu, mem, ok := projectedUtilization(instance.MachineType, targetType, metrics); ok &&
+			e.shouldScaleUp(&config.MetricsSummary{CPUP95: cpu, MemoryP95Pct: mem}) {
+			decision.ShouldScale = false
+			decision.Reason = fmt.Sprintf("Holding size: on %s the same load would be CPU %.1f%%, Memory %.1f%%, "+
+				"above the scale-up threshold, so the next cycle would scale straight back", targetType, cpu, mem)
+			return decision, nil
+		}
 		decision.Reason = fmt.Sprintf("Low resource utilization detected (CPU P95: %.1f%%, Memory P95: %.1f%%)",
 			metrics.CPUP95, metrics.MemoryP95Pct)
 	}
@@ -88,6 +95,24 @@ func (e *Engine) AnalyzeInstance(instance *config.InstanceInfo, metrics *config.
 		instance.MachineType, targetType, instance.Region)
 
 	return decision, nil
+}
+
+// projectedUtilization estimates P95 utilization on targetType for the load
+// observed on currentType, assuming load scales with capacity. It is the
+// hysteresis check for scale-down: machine ladders step by ~2x, so any
+// dead band narrower than the step (e.g. 50%/80%) would otherwise oscillate.
+// ok is false when either type's shape is unknown.
+func projectedUtilization(currentType, targetType string, m *config.MetricsSummary) (cpu, mem float64, ok bool) {
+	from, err := config.GetMachineType(currentType)
+	if err != nil {
+		return 0, 0, false
+	}
+	to, err := config.GetMachineType(targetType)
+	if err != nil || to.CPU <= 0 || to.MemoryGB <= 0 {
+		return 0, 0, false
+	}
+	return m.CPUP95 * float64(from.CPU) / float64(to.CPU),
+		m.MemoryP95Pct * from.MemoryGB / to.MemoryGB, true
 }
 
 // shouldScaleUp determines if instance should be scaled up

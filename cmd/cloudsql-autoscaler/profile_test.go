@@ -67,8 +67,6 @@ var _ = Describe("Scaling stability (no flapping between adjacent sizes)", func(
 	})
 
 	It("is stable for the default profile", func() {
-		Skip("BUG: default thresholds (down < 50%, up > 80%) have no hysteresis for 2x ladders; " +
-			"a P95 in (40%, 50%) scales down, doubles to (80%, 100%) and scales straight back up")
 		for _, mt := range ladder {
 			flaps, how := flapsAfterScaleDown(buildConfigFromProfile("default"), mt)
 			Expect(flaps).To(BeFalse(), "%s", how)
@@ -76,7 +74,6 @@ var _ = Describe("Scaling stability (no flapping between adjacent sizes)", func(
 	})
 
 	It("is stable for the aggressive profile", func() {
-		Skip("BUG: aggressive thresholds (down < 60%, up > 70%) flap for any P95 in (35%, 60%) on 2x ladders")
 		for _, mt := range ladder {
 			flaps, how := flapsAfterScaleDown(buildConfigFromProfile("aggressive"), mt)
 			Expect(flaps).To(BeFalse(), "%s", how)
