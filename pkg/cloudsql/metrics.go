@@ -9,6 +9,7 @@ import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -21,9 +22,10 @@ type MetricsClient struct {
 	projectID string
 }
 
-// NewMetricsClient creates a new metrics client
-func NewMetricsClient(ctx context.Context, projectID string) (*MetricsClient, error) {
-	client, err := monitoring.NewMetricClient(ctx)
+// NewMetricsClient creates a new metrics client. opts are passed through to the
+// Cloud Monitoring client (e.g. to point it at a fake endpoint in tests).
+func NewMetricsClient(ctx context.Context, projectID string, opts ...option.ClientOption) (*MetricsClient, error) {
+	client, err := monitoring.NewMetricClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics client: %w", err)
 	}

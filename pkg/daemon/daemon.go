@@ -46,10 +46,14 @@ func NewDaemon(cfg *config.Config, daemonCfg *DaemonConfig) (*Daemon, error) {
 		return nil, NewDaemonError("create_analyzer", "startup", err)
 	}
 
-	// Create configuration wrapper
+	return assembleDaemon(ctx, cancel, cfg, daemonCfg, projectAnalyzer), nil
+}
+
+// assembleDaemon wires the daemon's components around an Analyzer. Split from
+// NewDaemon so the wiring can be exercised without real GCP clients.
+func assembleDaemon(ctx context.Context, cancel context.CancelFunc, cfg *config.Config, daemonCfg *DaemonConfig, a Analyzer) *Daemon {
 	daemonConfig := NewDaemonConfig(cfg, daemonCfg.Interval, daemonCfg.HTTPPort, daemonCfg.EnableMetrics)
 
-	// Create metrics reporter based on configuration
 	var metricsReporter MetricsReporter
 	if daemonCfg.EnableMetrics {
 		metricsReporter = NewPrometheusMetricsReporter()
@@ -57,26 +61,21 @@ func NewDaemon(cfg *config.Config, daemonCfg *DaemonConfig) (*Daemon, error) {
 		metricsReporter = NewSimpleMetricsReporter()
 	}
 
-	// Create cycle runner with dependencies injected
-	runner := NewAutoscalingRunner(projectAnalyzer, daemonConfig, metricsReporter)
+	runner := NewAutoscalingRunner(a, daemonConfig, metricsReporter)
 
-	// Create HTTP server for health checks and metrics
 	httpServer := &HTTPServer{
 		port:   daemonCfg.HTTPPort,
 		daemon: nil, // Will be set after daemon creation
 	}
 
-	// Create signal handler
-	signalHandler := NewOSSignalHandler()
-
 	return &Daemon{
 		config:        daemonConfig,
 		runner:        runner,
 		httpServer:    httpServer,
-		signalHandler: signalHandler,
+		signalHandler: NewOSSignalHandler(),
 		ctx:           ctx,
 		cancel:        cancel,
-	}, nil
+	}
 }
 
 // Start begins the daemon operation using improved composition
