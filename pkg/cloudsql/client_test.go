@@ -186,7 +186,7 @@ var _ = Describe("Client (against fake Cloud SQL Admin API)", func() {
 			Expect(fake.Updates()).To(BeEmpty())
 		})
 
-		It("stops waiting on a pending operation when the context is cancelled", func() {
+		It("stops waiting on a pending operation when the context is canceled", func() {
 			fake.SetOperationResult(&sqladmin.Operation{Status: "RUNNING"})
 			cctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 			defer cancel()

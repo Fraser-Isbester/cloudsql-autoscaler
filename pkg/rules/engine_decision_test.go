@@ -104,7 +104,7 @@ var _ = Describe("Engine decision boundaries", func() {
 			Expect(d.DowntimeExpected).To(BeTrue())
 		})
 
-		DescribeTable("Enterprise Plus honours the 30m upscale / 3h downscale intervals",
+		DescribeTable("Enterprise Plus honors the 30m upscale / 3h downscale intervals",
 			func(sinceLast time.Duration, cpu, mem float64, wantDowntime bool) {
 				instance.LastScaledTime = time.Now().Add(-sinceLast)
 				d, err := engine.AnalyzeInstance(instance, metrics(cpu, mem))
@@ -148,7 +148,7 @@ var _ = Describe("GetOptimalScalingWindow (downtime-causing editions)", func() {
 
 		Expect(w.Start.UTC().Hour()).To(Equal(4))
 		Expect(w.Start.After(time.Now())).To(BeTrue())
-		Expect(w.Start.Sub(time.Now())).To(BeNumerically("<=", 24*time.Hour))
+		Expect(time.Until(w.Start)).To(BeNumerically("<=", 24*time.Hour))
 		Expect(w.Duration).To(Equal(2 * time.Hour))
 		Expect(w.End.Sub(w.Start)).To(Equal(2 * time.Hour))
 	})

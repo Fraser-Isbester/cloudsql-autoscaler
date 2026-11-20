@@ -18,7 +18,7 @@ const project = "test-project"
 
 // fixture wires a real Analyzer to fake Cloud SQL Admin and Monitoring backends.
 // The fake monitoring backend serves the same series for every instance, so
-// per-instance load is modelled by giving each test its own instance mix.
+// per-instance load is modeled by giving each test its own instance mix.
 type fixture struct {
 	sql *fakegcp.SQLAdmin
 	mon *fakegcp.Monitoring
