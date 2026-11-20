@@ -1,6 +1,6 @@
 module github.com/fraser-isbester/cloudsql-autoscaler
 
-go 1.26.9
+go 1.26.11
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
@@ -10,7 +10,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.9.1
 	google.golang.org/api v0.264.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -31,7 +31,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
