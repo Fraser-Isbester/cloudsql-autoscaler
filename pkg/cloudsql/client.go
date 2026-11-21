@@ -63,7 +63,7 @@ func (c *Client) GetInstance(ctx context.Context, instanceName string) (*config.
 		LastScaledTime:   lastScaledTime,
 		CurrentCPU:       machineType.CPU,
 		CurrentMemoryGB:  machineType.MemoryGB,
-		BackupEnabled:    instance.Settings.BackupConfiguration.Enabled,
+		BackupEnabled:    instance.Settings.BackupConfiguration != nil && instance.Settings.BackupConfiguration.Enabled,
 		HighAvailability: instance.Settings.AvailabilityType == "REGIONAL",
 		Region:           instance.Region,
 	}
