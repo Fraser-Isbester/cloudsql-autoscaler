@@ -371,6 +371,16 @@ func getNextCustomMachineType(current MachineType, scaleUp bool) (string, error)
 		nextMemoryMB = max(1024, currentMemoryMB-max(1024, currentMemoryMB/3))
 	}
 
+	// Cloud SQL custom types take 1 or an even vCPU count; round away from the
+	// current size so the step still moves in the requested direction.
+	if nextCPU > 1 && nextCPU%2 != 0 {
+		if scaleUp {
+			nextCPU = min(nextCPU+1, 96)
+		} else {
+			nextCPU--
+		}
+	}
+
 	// Validate the new configuration
 	memoryGB := float64(nextMemoryMB) / 1024.0
 	minMemoryGB := float64(nextCPU) * 0.9

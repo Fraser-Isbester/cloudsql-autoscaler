@@ -147,9 +147,6 @@ var _ = Describe("Machine type ladder invariants (custom)", func() {
 
 var _ = Describe("Custom machine types the Cloud SQL API will accept", func() {
 	It("only recommends 1 or an even number of vCPUs", func() {
-		Skip("BUG: Cloud SQL custom machine types require 1 or an even vCPU count; " +
-			"getNextCustomMachineType steps by ±50%/33% and yields odd counts (e.g. 64 -> 43 -> 29), " +
-			"which the API rejects, so the scale operation fails at apply time")
 		cur := "db-custom-96-393216"
 		for range 50 {
 			next, err := GetNextSmallerMachineType(cur)
@@ -158,6 +155,20 @@ var _ = Describe("Custom machine types the Cloud SQL API will accept", func() {
 			}
 			mt, _ := GetMachineType(next)
 			Expect(mt.CPU == 1 || mt.CPU%2 == 0).To(BeTrue(), "%s -> %s", cur, next)
+			cur = next
+		}
+	})
+
+	It("only recommends 1 or an even number of vCPUs when scaling up", func() {
+		cur := "db-custom-1-3840"
+		for range 50 {
+			next, err := GetNextLargerMachineType(cur)
+			if err != nil {
+				return
+			}
+			mt, _ := GetMachineType(next)
+			Expect(mt.CPU == 1 || mt.CPU%2 == 0).To(BeTrue(), "%s -> %s", cur, next)
+			Expect(mt.CPU).To(BeNumerically("<=", 96), "%s -> %s", cur, next)
 			cur = next
 		}
 	})
