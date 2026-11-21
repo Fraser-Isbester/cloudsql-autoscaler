@@ -82,10 +82,12 @@ func (r *autoscalingRunner) applyScalingDecisions(ctx context.Context, instances
 		if err != nil {
 			log.Printf("Failed to scale instance %s: %v", result.Instance.Name, err)
 			r.metrics.RecordError("scaling_failed")
+			r.metrics.RecordScalingOperation(result.Instance.Name, "failed")
 			lastErr = err
 		} else {
 			log.Printf("Successfully scaled instance %s from %s to %s",
 				result.Instance.Name, result.Decision.CurrentType, result.Decision.RecommendedType)
+			r.metrics.RecordScalingOperation(result.Instance.Name, "success")
 			successCount++
 		}
 	}
@@ -108,6 +110,7 @@ func (r *simpleMetricsReporter) RecordCycleDuration(duration time.Duration)     
 func (r *simpleMetricsReporter) RecordCycleCompletion()                             {}
 func (r *simpleMetricsReporter) RecordError(errorType string)                       {}
 func (r *simpleMetricsReporter) RecordInstanceCounts(total, analyzed, scalable int) {}
+func (r *simpleMetricsReporter) RecordScalingOperation(instance, result string)     {}
 
 // NewSimpleMetricsReporter creates a no-op metrics reporter
 func NewSimpleMetricsReporter() MetricsReporter {
@@ -141,6 +144,10 @@ func (r *prometheusMetricsReporter) RecordInstanceCounts(total, analyzed, scalab
 		instancesAnalyzed.Set(float64(analyzed))
 		instancesScalable.Set(float64(scalable))
 	}
+}
+
+func (r *prometheusMetricsReporter) RecordScalingOperation(instance, result string) {
+	RecordScalingOperation(instance, result)
 }
 
 // NewPrometheusMetricsReporter creates a Prometheus-backed metrics reporter
