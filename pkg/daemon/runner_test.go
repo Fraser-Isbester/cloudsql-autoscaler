@@ -42,6 +42,7 @@ func (f *fakeAnalyzer) Close() error { return nil }
 type metricsSpy struct {
 	cycles, durations int
 	errs              []string
+	ops               []string
 	total, analyzed   int
 	scalable          int
 }
@@ -50,6 +51,9 @@ func (m *metricsSpy) RecordCycleDuration(time.Duration) { m.durations++ }
 func (m *metricsSpy) RecordCycleCompletion()            { m.cycles++ }
 func (m *metricsSpy) RecordError(t string)              { m.errs = append(m.errs, t) }
 func (m *metricsSpy) RecordInstanceCounts(t, a, s int)  { m.total, m.analyzed, m.scalable = t, a, s }
+func (m *metricsSpy) RecordScalingOperation(instance, result string) {
+	m.ops = append(m.ops, instance+"="+result)
+}
 
 type runnerConfig struct {
 	fakeLoopConfig
@@ -114,6 +118,12 @@ var _ = Describe("autoscalingRunner.RunCycle", func() {
 		Expect(err).To(MatchError(boom))
 		Expect(fa.applied).To(ConsistOf("hot", "idle"))
 		Expect(metrics.errs).To(Equal([]string{"scaling_failed"}))
+		Expect(metrics.ops).To(ConsistOf("hot=failed", "idle=success"))
+	})
+
+	It("records one scaling operation per applied instance", func() {
+		Expect(run(false)).To(Succeed())
+		Expect(metrics.ops).To(ConsistOf("hot=success", "idle=success"))
 	})
 
 	It("applies nothing when analysis fails, and wraps the cause", func() {

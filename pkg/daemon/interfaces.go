@@ -29,6 +29,7 @@ type MetricsReporter interface {
 	RecordCycleCompletion()
 	RecordError(errorType string)
 	RecordInstanceCounts(total, analyzed, scalable int)
+	RecordScalingOperation(instance, result string)
 }
 
 // SignalHandler defines the interface for handling OS signals

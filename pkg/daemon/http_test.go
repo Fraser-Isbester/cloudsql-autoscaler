@@ -158,8 +158,6 @@ var _ = Describe("Prometheus metrics contract", func() {
 	})
 
 	It("counts scaling operations (README lists cloudsql_autoscaler_scaling_operations_total)", func() {
-		Skip("BUG: RecordScalingOperation is never called, so the documented " +
-			"cloudsql_autoscaler_scaling_operations_total metric is never emitted")
 		fa := &fakeAnalyzer{result: &analyzer.ProjectAnalysisResult{
 			Results: []*analyzer.AnalysisResult{result("hot", true)}, TotalInstances: 1, AnalyzedInstances: 1,
 		}}
