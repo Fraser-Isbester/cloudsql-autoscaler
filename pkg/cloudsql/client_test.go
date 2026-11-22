@@ -126,8 +126,6 @@ var _ = Describe("Client (against fake Cloud SQL Admin API)", func() {
 		})
 
 		It("follows pagination so no instance is silently ignored", func() {
-			Skip("BUG: ListInstances reads only the first page of instances.list (NextPageToken is ignored); " +
-				"projects with more instances than one page are partially analyzed")
 			fake.ListPageSize = 2
 			for _, n := range []string{"a", "b", "c", "d", "e"} {
 				fake.AddInstance(newInstance(n, "db-n2-standard-4", "ENTERPRISE"))

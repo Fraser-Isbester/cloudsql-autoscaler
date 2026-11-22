@@ -80,12 +80,17 @@ func (c *Client) GetInstance(ctx context.Context, instanceName string) (*config.
 func (c *Client) ListInstances(ctx context.Context) ([]*config.InstanceInfo, error) {
 	var instances []*config.InstanceInfo
 
-	resp, err := c.Service.Instances.List(c.projectID).Context(ctx).Do()
+	// Pages follows NextPageToken until it is exhausted.
+	var items []*sqladmin.DatabaseInstance
+	err := c.Service.Instances.List(c.projectID).Pages(ctx, func(resp *sqladmin.InstancesListResponse) error {
+		items = append(items, resp.Items...)
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %w", err)
 	}
 
-	for _, instance := range resp.Items {
+	for _, instance := range items {
 		info, err := c.GetInstance(ctx, instance.Name)
 		if err != nil {
 			// Log error but continue with other instances
