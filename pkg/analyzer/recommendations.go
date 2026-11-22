@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sort"
 
+	sqladmin "google.golang.org/api/sqladmin/v1"
+
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/cloudsql"
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/config"
-	sqladmin "google.golang.org/api/sqladmin/v1"
 )
 
 // ProjectAnalyzer analyzes all instances in a project
