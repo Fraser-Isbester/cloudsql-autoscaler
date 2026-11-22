@@ -126,8 +126,6 @@ var _ = Describe("Client (against fake Cloud SQL Admin API)", func() {
 		})
 
 		It("follows pagination so no instance is silently ignored", func() {
-			Skip("BUG: ListInstances reads only the first page of instances.list (NextPageToken is ignored); " +
-				"projects with more instances than one page are partially analyzed")
 			fake.ListPageSize = 2
 			for _, n := range []string{"a", "b", "c", "d", "e"} {
 				fake.AddInstance(newInstance(n, "db-n2-standard-4", "ENTERPRISE"))
@@ -224,9 +222,6 @@ var _ = Describe("Client (against fake Cloud SQL Admin API)", func() {
 		})
 
 		It("finds the instance's last update even when the project has many newer operations", func() {
-			Skip("BUG: GetRecentOperations lists the 50 newest operations project-wide and filters client-side " +
-				"instead of passing ?instance=; in a busy project a recent scale is missed, which disables " +
-				"the Enterprise Plus 30m/3h interval check and can trigger a downtime-causing re-scale")
 			for range 60 {
 				fake.AddOperation(&sqladmin.Operation{TargetId: "noisy", OperationType: "BACKUP_VOLUME", Status: "DONE", InsertTime: ts(time.Minute)})
 			}

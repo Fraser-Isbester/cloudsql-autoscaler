@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 
+	sqladmin "google.golang.org/api/sqladmin/v1"
+
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/cloudsql"
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/config"
 )
@@ -30,13 +32,15 @@ func NewProjectAnalyzer(ctx context.Context, cfg *config.Config) (*ProjectAnalyz
 func (p *ProjectAnalyzer) AnalyzeAllInstances(ctx context.Context) (*ProjectAnalysisResult, error) {
 	fmt.Println("Listing all Cloud SQL instances in the project...")
 
-	// First, get the raw list to know total count
-	rawResp, err := p.sqlClient.Service.Instances.List(p.config.ProjectID).Context(ctx).Do()
+	// First, count every instance, unsupported ones included, across all pages.
+	totalCount := 0
+	err := p.sqlClient.Service.Instances.List(p.config.ProjectID).Pages(ctx, func(resp *sqladmin.InstancesListResponse) error {
+		totalCount += len(resp.Items)
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %w", err)
 	}
-
-	totalCount := len(rawResp.Items)
 
 	// Now get detailed info for instances we can process
 	instances, err := p.sqlClient.ListInstances(ctx)

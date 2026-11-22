@@ -246,6 +246,23 @@ var _ = Describe("Analyzer end to end (fake GCP)", func() {
 			Expect(res.GetScalableInstances()).To(HaveLen(2))
 		})
 
+		It("counts and analyzes instances across every page of the list", func() {
+			f := newFixture(nil)
+			f.sql.ListPageSize = 2
+			f.instance("a", "db-n2-standard-4", "ENTERPRISE_PLUS")
+			f.instance("b", "db-e2-standard-8", "ENTERPRISE")
+			f.instance("c", "db-n2-standard-4", "ENTERPRISE")
+			f.instance("d", "db-n2-standard-4", "ENTERPRISE")
+			f.instance("weird", "db-mystery-9", "ENTERPRISE")
+			f.load(0.95, 0.60)
+
+			res, err := f.pa.AnalyzeAllInstances(ctx)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.TotalInstances).To(Equal(5))
+			Expect(res.AnalyzedInstances).To(Equal(4))
+		})
+
 		It("orders the scaling plan so zero-downtime changes go first", func() {
 			f := newFixture(nil)
 			f.instance("ent", "db-n2-standard-4", "ENTERPRISE")

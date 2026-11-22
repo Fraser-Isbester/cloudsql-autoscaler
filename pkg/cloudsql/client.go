@@ -80,12 +80,17 @@ func (c *Client) GetInstance(ctx context.Context, instanceName string) (*config.
 func (c *Client) ListInstances(ctx context.Context) ([]*config.InstanceInfo, error) {
 	var instances []*config.InstanceInfo
 
-	resp, err := c.Service.Instances.List(c.projectID).Context(ctx).Do()
+	// Pages follows NextPageToken until it is exhausted.
+	var items []*sqladmin.DatabaseInstance
+	err := c.Service.Instances.List(c.projectID).Pages(ctx, func(resp *sqladmin.InstancesListResponse) error {
+		items = append(items, resp.Items...)
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list instances: %w", err)
 	}
 
-	for _, instance := range resp.Items {
+	for _, instance := range items {
 		info, err := c.GetInstance(ctx, instance.Name)
 		if err != nil {
 			// Log error but continue with other instances
@@ -125,7 +130,10 @@ func (c *Client) UpdateMachineType(ctx context.Context, instanceName string, new
 
 // GetRecentOperations retrieves recent operations for an instance
 func (c *Client) GetRecentOperations(ctx context.Context, instanceName string, limit int) ([]*sqladmin.Operation, error) {
+	// Filter server-side so other instances' operations in a busy project
+	// cannot push this instance's recent ones out of the first page.
 	resp, err := c.Service.Operations.List(c.projectID).
+		Instance(instanceName).
 		MaxResults(int64(limit)).
 		Context(ctx).
 		Do()
@@ -133,15 +141,7 @@ func (c *Client) GetRecentOperations(ctx context.Context, instanceName string, l
 		return nil, fmt.Errorf("failed to list operations: %w", err)
 	}
 
-	// Filter operations for the target instance
-	var filteredOps []*sqladmin.Operation
-	for _, op := range resp.Items {
-		if op.TargetId == instanceName || op.TargetLink == fmt.Sprintf("https://sqladmin.googleapis.com/sql/v1beta4/projects/%s/instances/%s", c.projectID, instanceName) {
-			filteredOps = append(filteredOps, op)
-		}
-	}
-
-	return filteredOps, nil
+	return resp.Items, nil
 }
 
 // waitForOperation waits for a Cloud SQL operation to complete
