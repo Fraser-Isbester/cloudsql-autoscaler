@@ -43,9 +43,10 @@ var _ = Describe("Engine", func() {
 		Context("when load is high", func() {
 			It("recommends scaling up to the next larger machine type", func() {
 				metrics := &config.MetricsSummary{
-					CPUP95:       95,
-					MemoryP95Pct: 60,
-					DataPoints:   100,
+					CPUP95:           95,
+					MemoryP95Pct:     60,
+					DataPoints:       100,
+					MemoryDataPoints: 100,
 				}
 
 				decision, err := engine.AnalyzeInstance(instance, metrics)
@@ -59,9 +60,10 @@ var _ = Describe("Engine", func() {
 		Context("when load is low", func() {
 			It("recommends scaling down to the next smaller machine type", func() {
 				metrics := &config.MetricsSummary{
-					CPUP95:       20,
-					MemoryP95Pct: 20,
-					DataPoints:   100,
+					CPUP95:           20,
+					MemoryP95Pct:     20,
+					DataPoints:       100,
+					MemoryDataPoints: 100,
 				}
 
 				decision, err := engine.AnalyzeInstance(instance, metrics)
@@ -75,9 +77,10 @@ var _ = Describe("Engine", func() {
 		Context("when utilization is within the target range", func() {
 			It("does not recommend scaling", func() {
 				metrics := &config.MetricsSummary{
-					CPUP95:       60,
-					MemoryP95Pct: 60,
-					DataPoints:   100,
+					CPUP95:           60,
+					MemoryP95Pct:     60,
+					DataPoints:       100,
+					MemoryDataPoints: 100,
 				}
 
 				decision, err := engine.AnalyzeInstance(instance, metrics)
@@ -92,9 +95,10 @@ var _ = Describe("Engine", func() {
 			It("expects downtime for a scaling operation", func() {
 				instance.Edition = config.EditionEnterprise
 				metrics := &config.MetricsSummary{
-					CPUP95:       95,
-					MemoryP95Pct: 60,
-					DataPoints:   100,
+					CPUP95:           95,
+					MemoryP95Pct:     60,
+					DataPoints:       100,
+					MemoryDataPoints: 100,
 				}
 
 				decision, err := engine.AnalyzeInstance(instance, metrics)
@@ -111,9 +115,10 @@ var _ = Describe("Engine", func() {
 			BeforeEach(func() {
 				instance.Edition = config.EditionEnterprisePlus
 				metrics = &config.MetricsSummary{
-					CPUP95:       95,
-					MemoryP95Pct: 60,
-					DataPoints:   100,
+					CPUP95:           95,
+					MemoryP95Pct:     60,
+					DataPoints:       100,
+					MemoryDataPoints: 100,
 				}
 			})
 
