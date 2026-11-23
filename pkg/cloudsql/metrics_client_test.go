@@ -74,6 +74,22 @@ var _ = Describe("MetricsClient (against fake Cloud Monitoring API)", func() {
 		Expect(data.Connections).To(Equal([]int{0, 42, 0}))
 	})
 
+	It("skips absent memory samples instead of reading them as 0% (#18)", func() {
+		pts := fakegcp.Constant(end, 5*time.Minute, 3, 0.5)
+		fake.SetSeries(fakegcp.MetricCPU, pts)
+		fake.SetSeries(fakegcp.MetricMemory, []fakegcp.Point{{At: pts[1].At, Value: 0.6}})
+
+		data, err := mc.GetInstanceMetrics(ctx, "db1", cfg)
+
+		Expect(err).NotTo(HaveOccurred())
+		Expect(data.Timestamps).To(HaveLen(3))
+		Expect(data.MemoryPercent).To(HaveExactElements(BeNumerically("~", 60, 1e-9)))
+		summary := CalculateMetricsSummary(data)
+		Expect(summary.DataPoints).To(Equal(3))
+		Expect(summary.MemoryDataPoints).To(Equal(1))
+		Expect(summary.MemoryAvgPct).To(BeNumerically("~", 60, 1e-9))
+	})
+
 	It("fails when CPU utilization cannot be fetched", func() {
 		fake.FailMetric(fakegcp.MetricCPU, codes.PermissionDenied)
 

@@ -16,7 +16,7 @@ var _ = Describe("Engine decision boundaries", func() {
 	)
 
 	metrics := func(cpu, mem float64) *config.MetricsSummary {
-		return &config.MetricsSummary{CPUP95: cpu, MemoryP95Pct: mem, DataPoints: 100}
+		return &config.MetricsSummary{CPUP95: cpu, MemoryP95Pct: mem, DataPoints: 100, MemoryDataPoints: 100}
 	}
 
 	BeforeEach(func() {
@@ -75,6 +75,30 @@ var _ = Describe("Engine decision boundaries", func() {
 		m.DataPoints = 10
 		d, _ = engine.AnalyzeInstance(instance, m)
 		Expect(d.ShouldScale).To(BeTrue())
+	})
+
+	It("holds instead of scaling down when memory has too few samples to call it low (#18)", func() {
+		m := metrics(10, 0)
+		m.MemoryDataPoints = 9
+		d, err := engine.AnalyzeInstance(instance, m)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(d.ShouldScale).To(BeFalse())
+		Expect(d.RecommendedType).To(BeEmpty())
+		Expect(d.Reason).To(ContainSubstring("Insufficient memory metrics"))
+
+		m.MemoryDataPoints = 10
+		d, _ = engine.AnalyzeInstance(instance, m)
+		Expect(d.ShouldScale).To(BeTrue())
+		Expect(d.RecommendedType).To(Equal("db-n2-standard-2"))
+	})
+
+	It("still scales up on CPU alone when memory samples are missing", func() {
+		m := metrics(95, 0)
+		m.MemoryDataPoints = 0
+		d, err := engine.AnalyzeInstance(instance, m)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(d.ShouldScale).To(BeTrue())
+		Expect(d.RecommendedType).To(Equal("db-n2-standard-8"))
 	})
 
 	It("never scales a hot instance down when thresholds are misconfigured to overlap", func() {

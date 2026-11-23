@@ -36,16 +36,17 @@ func flapsAfterScaleDown(cfg *config.Config, machineType string) (bool, string) 
 	engine := rules.NewEngine(cfg)
 	inst := &config.InstanceInfo{MachineType: machineType, Edition: config.EditionEnterprisePlus}
 	for p95 := 0.0; p95 <= 100; p95 += 0.5 {
-		down, _ := engine.AnalyzeInstance(inst, &config.MetricsSummary{CPUP95: p95, MemoryP95Pct: p95, DataPoints: 100})
+		down, _ := engine.AnalyzeInstance(inst, &config.MetricsSummary{CPUP95: p95, MemoryP95Pct: p95, DataPoints: 100, MemoryDataPoints: 100})
 		if !down.ShouldScale || down.EstimatedSavings <= 0 {
 			continue
 		}
 		from, _ := config.GetMachineType(machineType)
 		to, _ := config.GetMachineType(down.RecommendedType)
 		projected := &config.MetricsSummary{
-			CPUP95:       p95 * float64(from.CPU) / float64(to.CPU),
-			MemoryP95Pct: p95 * from.MemoryGB / to.MemoryGB,
-			DataPoints:   100,
+			CPUP95:           p95 * float64(from.CPU) / float64(to.CPU),
+			MemoryP95Pct:     p95 * from.MemoryGB / to.MemoryGB,
+			DataPoints:       100,
+			MemoryDataPoints: 100,
 		}
 		back, _ := engine.AnalyzeInstance(&config.InstanceInfo{MachineType: down.RecommendedType, Edition: config.EditionEnterprisePlus}, projected)
 		if back.ShouldScale && back.RecommendedType == machineType {

@@ -65,7 +65,7 @@ type MetricsData struct {
 	Timestamps     []time.Time
 	CPUUtilization []float64 // Percentage (0-100)
 	MemoryUsageGB  []float64 // Actual memory used in GB
-	MemoryPercent  []float64 // Memory utilization percentage
+	MemoryPercent  []float64 // Memory utilization percentage; only samples present, so may be shorter than Timestamps
 	Connections    []int
 	DiskUsageGB    []float64
 	DiskIOPS       []float64
@@ -88,4 +88,7 @@ type MetricsSummary struct {
 	ConnectionsMax int
 	Period         time.Duration
 	DataPoints     int
+	// MemoryDataPoints counts the memory utilization samples behind the
+	// Memory*Pct stats. Too few means memory is unknown, not idle.
+	MemoryDataPoints int
 }

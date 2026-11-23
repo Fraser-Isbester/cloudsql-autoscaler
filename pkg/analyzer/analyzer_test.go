@@ -137,8 +137,6 @@ var _ = Describe("Analyzer end to end (fake GCP)", func() {
 		})
 
 		It("does not read missing memory samples as an idle instance", func() {
-			Skip("BUG: GetInstanceMetrics fills absent memory samples with 0%, so an instance whose memory " +
-				"series is empty (or gappy) looks idle and gets scaled down on CPU alone")
 			f := newFixture(nil)
 			f.instance("db", "db-n2-standard-4", "ENTERPRISE_PLUS")
 			f.load(0.10, 0)
@@ -148,6 +146,20 @@ var _ = Describe("Analyzer end to end (fake GCP)", func() {
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(r.Decision.ShouldScale).To(BeFalse())
+		})
+
+		It("still scales a hot instance up when its memory series is empty", func() {
+			f := newFixture(nil)
+			f.instance("hot", "db-n2-standard-4", "ENTERPRISE_PLUS")
+			f.load(0.95, 0)
+			f.mon.SetSeries(fakegcp.MetricMemory, nil)
+
+			r, err := f.pa.AnalyzeInstance(ctx, "hot")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(r.Summary.MemoryDataPoints).To(BeZero())
+			Expect(r.Decision.ShouldScale).To(BeTrue())
+			Expect(r.Decision.RecommendedType).To(Equal("db-n2-standard-8"))
 		})
 	})
 

@@ -104,10 +104,10 @@ func (m *MetricsClient) GetInstanceMetrics(ctx context.Context, instanceID strin
 			metrics.CPUUtilization = append(metrics.CPUUtilization, 0)
 		}
 
+		// Absent memory samples are skipped, not zero-filled: 0% would read as
+		// an idle instance and drive a scale-down on CPU alone (#18).
 		if memPct, ok := memoryData[ts]; ok {
 			metrics.MemoryPercent = append(metrics.MemoryPercent, memPct*100) // Convert to percentage
-		} else {
-			metrics.MemoryPercent = append(metrics.MemoryPercent, 0)
 		}
 
 		if memBytes, ok := memoryBytesData[ts]; ok {
@@ -202,6 +202,7 @@ func CalculateMetricsSummary(data *config.MetricsData) *config.MetricsSummary {
 	summary.MemoryP99GB = calculatePercentile(data.MemoryUsageGB, 99)
 	summary.MemoryMaxGB = calculateMax(data.MemoryUsageGB)
 
+	summary.MemoryDataPoints = len(data.MemoryPercent)
 	summary.MemoryAvgPct = calculateAverage(data.MemoryPercent)
 	summary.MemoryP95Pct = calculatePercentile(data.MemoryPercent, 95)
 	summary.MemoryP99Pct = calculatePercentile(data.MemoryPercent, 99)

@@ -8,6 +8,9 @@ import (
 	"github.com/fraser-isbester/cloudsql-autoscaler/pkg/config"
 )
 
+// minDataPoints is the fewest samples a series needs before it can drive a decision.
+const minDataPoints = 10
+
 // Engine is the scaling rules engine
 type Engine struct {
 	config *config.Config
@@ -28,7 +31,7 @@ func (e *Engine) AnalyzeInstance(instance *config.InstanceInfo, metrics *config.
 	}
 
 	// Check if we have enough data
-	if metrics.DataPoints < 10 {
+	if metrics.DataPoints < minDataPoints {
 		decision.ShouldScale = false
 		decision.Reason = "Insufficient metrics data for analysis"
 		return decision, nil
@@ -37,6 +40,15 @@ func (e *Engine) AnalyzeInstance(instance *config.InstanceInfo, metrics *config.
 	// Determine if scaling is needed based on utilization
 	scaleUp := e.shouldScaleUp(metrics)
 	scaleDown := e.shouldScaleDown(metrics)
+
+	// Scale-down needs both CPU and memory to be low; without memory samples
+	// we can't know memory is low, so hold rather than read it as 0%.
+	if !scaleUp && scaleDown && metrics.MemoryDataPoints < minDataPoints {
+		decision.ShouldScale = false
+		decision.Reason = fmt.Sprintf("Insufficient memory metrics data to scale down (CPU P95: %.1f%%, %d memory samples)",
+			metrics.CPUP95, metrics.MemoryDataPoints)
+		return decision, nil
+	}
 
 	if !scaleUp && !scaleDown {
 		decision.ShouldScale = false
