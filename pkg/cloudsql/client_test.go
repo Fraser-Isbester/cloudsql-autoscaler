@@ -95,13 +95,16 @@ var _ = Describe("Client (against fake Cloud SQL Admin API)", func() {
 		})
 
 		It("does not panic when the API omits settings.backupConfiguration", func() {
-			Skip("BUG: GetInstance dereferences Settings.BackupConfiguration without a nil check; " +
-				"an instance returned without that block panics and aborts the whole analysis cycle")
 			inst := newInstance("replica", "db-n2-standard-4", "ENTERPRISE")
 			inst.Settings.BackupConfiguration = nil
 			fake.AddInstance(inst)
 
-			Expect(func() { _, _ = client.GetInstance(ctx, "replica") }).NotTo(Panic())
+			var info *config.InstanceInfo
+			var err error
+			Expect(func() { info, err = client.GetInstance(ctx, "replica") }).NotTo(Panic())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(info).NotTo(BeNil())
+			Expect(info.BackupEnabled).To(BeFalse())
 		})
 	})
 
